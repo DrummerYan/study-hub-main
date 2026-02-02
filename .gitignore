@@ -1,0 +1,62 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dist/
+.npm
+.eslintcache
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+vendor/
+
+# 日志文件
+*.log
+logs/
+
+# 数据库
+*.db
+*.sqlite
+*.sqlite3
+
+# 配置文件（可能包含敏感信息）
+config.yaml
+config.json
+.env
+.env.local
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# 编译输出
+server/server
+web/dist/
+wx/unpackage/
+
+# 依赖
+server/vendor/
+web/node_modules/
+wx/node_modules/

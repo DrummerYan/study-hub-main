@@ -1,0 +1,48 @@
+version: "3"
+
+# 本地开发专用配置 - 只启动 MySQL 和 Redis
+# 前后端直接在本地运行
+
+networks:
+  network:
+    ipam:
+      driver: default
+      config:
+        - subnet: '177.7.0.0/16'
+        
+volumes:
+  mysql:
+  redis:
+  
+services:
+  mysql:
+    image: mysql:8.0.33       # ARM64 兼容版本 (适用于 M1/M2/M3 Mac)
+    platform: linux/arm64     # 明确指定 ARM64 架构
+    container_name: gva-mysql
+    command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    restart: always
+    ports:
+      - "13306:3306"  # 只用 13306 端口，避免与本地 MySQL 冲突
+    environment:
+      MYSQL_ROOT_PASSWORD: 'Aa@6447985'
+      MYSQL_DATABASE: 'qmPlus'
+      MYSQL_USER: 'gva'
+      MYSQL_PASSWORD: 'Aa@6447985'
+    volumes:
+      - mysql:/var/lib/mysql
+    networks:
+      network:
+        ipv4_address: 177.7.0.13
+
+  redis:
+    image: redis:6.0.6
+    platform: linux/arm64
+    container_name: gva-redis
+    restart: always
+    ports:
+      - '16379:6379'  # 只用 16379 端口，避免与本地 Redis 冲突
+    volumes:
+      - redis:/data
+    networks:
+      network:
+        ipv4_address: 177.7.0.14
