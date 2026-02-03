@@ -65,7 +65,7 @@ func (i *initUser) InitializeData(ctx context.Context) (next context.Context, er
 			Password:    password,
 			NickName:    "用户1",
 			HeaderImg:   "https:///qmplusimg.henrongyi.top/1572075907logo.png",
-			AuthorityId: 9528,
+			AuthorityId: 9002,
 			Phone:       "17611111111",
 			Email:       "333333333@qq.com"},
 	}
@@ -80,8 +80,13 @@ func (i *initUser) InitializeData(ctx context.Context) (next context.Context, er
 	if err = db.Model(&entities[0]).Association("Authorities").Replace(authorityEntities); err != nil {
 		return next, err
 	}
-	if err = db.Model(&entities[1]).Association("Authorities").Replace(authorityEntities[:1]); err != nil {
-		return next, err
+	for i := range authorityEntities {
+		if authorityEntities[i].AuthorityId == 9002 {
+			if err = db.Model(&entities[1]).Association("Authorities").Replace([]sysModel.SysAuthority{authorityEntities[i]}); err != nil {
+				return next, err
+			}
+			break
+		}
 	}
 	return next, err
 }
@@ -96,5 +101,5 @@ func (i *initUser) DataInserted(ctx context.Context) bool {
 		Preload("Authorities").First(&record).Error, gorm.ErrRecordNotFound) { // 判断是否存在数据
 		return false
 	}
-	return len(record.Authorities) > 0 && record.Authorities[0].AuthorityId == 888
+	return record.AuthorityId == 9002
 }

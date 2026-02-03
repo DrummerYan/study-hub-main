@@ -206,3 +206,33 @@ func (a *AuthorityApi) SetDataAuthority(c *gin.Context) {
 	}
 	response.OkWithMessage("设置成功", c)
 }
+
+// GetAuthorityUsageInfo
+// @Tags      Authority
+// @Summary   获取角色使用情况
+// @Security  ApiKeyAuth
+// @accept    application/json
+// @Produce   application/json
+// @Param     data  body      system.SysAuthority            true  "角色ID"
+// @Success   200   {object}  response.Response{data=map[string]interface{},msg=string}  "获取角色使用情况"
+// @Router    /authority/getAuthorityUsageInfo [post]
+func (a *AuthorityApi) GetAuthorityUsageInfo(c *gin.Context) {
+	var auth system.SysAuthority
+	err := c.ShouldBindJSON(&auth)
+	if err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	err = utils.Verify(auth, utils.AuthorityIdVerify)
+	if err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	usageInfo, err := authorityService.GetAuthorityUsageInfo(auth.AuthorityId)
+	if err != nil {
+		global.GVA_LOG.Error("获取失败!", zap.Error(err))
+		response.FailWithMessage("获取失败"+err.Error(), c)
+		return
+	}
+	response.OkWithDetailed(usageInfo, "获取成功", c)
+}

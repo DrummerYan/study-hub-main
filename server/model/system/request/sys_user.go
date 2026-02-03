@@ -12,7 +12,8 @@ import (
 // Register User register structure
 type Register struct {
 	Username          string `json:"userName" example:"用户名"`
-	Password          string `json:"passWord" example:"密码"`
+	Password          string `json:"password" example:"密码"`
+	PassWord          string `json:"passWord" example:"密码(兼容旧字段)"`
 	NickName          string `json:"nickName" example:"昵称"`
 	HeaderImg         string `json:"headerImg" example:"头像链接"`
 	AuthorityId       uint   `json:"authorityId" swaggertype:"string" example:"int 角色id"`

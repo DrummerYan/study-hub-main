@@ -20,6 +20,7 @@ func (s *AuthorityRouter) InitAuthorityRouter(Router *gin.RouterGroup) {
 		authorityRouter.POST("setDataAuthority", authorityApi.SetDataAuthority) // 设置角色资源权限
 	}
 	{
-		authorityRouterWithoutRecord.POST("getAuthorityList", authorityApi.GetAuthorityList) // 获取角色列表
+		authorityRouterWithoutRecord.POST("getAuthorityList", authorityApi.GetAuthorityList)           // 获取角色列表
+		authorityRouterWithoutRecord.POST("getAuthorityUsageInfo", authorityApi.GetAuthorityUsageInfo) // 获取角色使用情况
 	}
 }

@@ -242,3 +242,87 @@ func (authorityService *AuthorityService) findChildrenAuthority(authority *syste
 	}
 	return err
 }
+
+//@author: [piexlmax](https://github.com/piexlmax)
+//@function: GetAuthorityUsageInfo
+//@description: 获取角色使用情况
+//@param: authorityId uint
+//@return: map[string]interface{}, error
+
+func (authorityService *AuthorityService) GetAuthorityUsageInfo(authorityId uint) (map[string]interface{}, error) {
+	result := make(map[string]interface{})
+	
+	// 1. 检查角色是否存在
+	var authority system.SysAuthority
+	if err := global.GVA_DB.Where("authority_id = ?", authorityId).First(&authority).Error; err != nil {
+		return nil, errors.New("角色不存在")
+	}
+	result["authorityInfo"] = authority
+	
+	// 2. 统计多对多关联表中的用户数量
+	var multiUserCount int64
+	if err := global.GVA_DB.Model(&system.SysUserAuthority{}).
+		Where("sys_authority_authority_id = ?", authorityId).
+		Count(&multiUserCount).Error; err != nil {
+		return nil, err
+	}
+	result["multiUserCount"] = multiUserCount
+	
+	// 3. 统计默认角色为该角色的用户数量
+	var defaultUserCount int64
+	if err := global.GVA_DB.Model(&system.SysUser{}).
+		Where("authority_id = ?", authorityId).
+		Where("deleted_at IS NULL").
+		Count(&defaultUserCount).Error; err != nil {
+		return nil, err
+	}
+	result["defaultUserCount"] = defaultUserCount
+	
+	// 4. 获取使用该角色的用户列表（前10个）
+	type UserInfo struct {
+		ID       uint   `json:"id"`
+		Username string `json:"username"`
+		NickName string `json:"nickName"`
+		Phone    string `json:"phone"`
+	}
+	var users []UserInfo
+	err := global.GVA_DB.Table("sys_users").
+		Select("sys_users.id, sys_users.user_name as username, sys_users.nick_name, sys_users.phone").
+		Joins("JOIN sys_user_authority ON sys_users.id = sys_user_authority.sys_user_id").
+		Where("sys_user_authority.sys_authority_authority_id = ?", authorityId).
+		Where("sys_users.deleted_at IS NULL").
+		Limit(10).
+		Scan(&users).Error
+	if err != nil {
+		return nil, err
+	}
+	result["users"] = users
+	
+	// 5. 统计子角色数量
+	var childrenCount int64
+	if err := global.GVA_DB.Model(&system.SysAuthority{}).
+		Where("parent_id = ?", authorityId).
+		Count(&childrenCount).Error; err != nil {
+		return nil, err
+	}
+	result["childrenCount"] = childrenCount
+	
+	// 6. 判断是否可以删除
+	canDelete := multiUserCount == 0 && defaultUserCount == 0 && childrenCount == 0
+	result["canDelete"] = canDelete
+	
+	// 7. 生成删除阻止原因
+	var blockReasons []string
+	if multiUserCount > 0 {
+		blockReasons = append(blockReasons, strconv.FormatInt(multiUserCount, 10)+"个用户正在使用此角色")
+	}
+	if defaultUserCount > 0 {
+		blockReasons = append(blockReasons, strconv.FormatInt(defaultUserCount, 10)+"个用户以此为默认角色")
+	}
+	if childrenCount > 0 {
+		blockReasons = append(blockReasons, "存在"+strconv.FormatInt(childrenCount, 10)+"个子角色")
+	}
+	result["blockReasons"] = blockReasons
+	
+	return result, nil
+}

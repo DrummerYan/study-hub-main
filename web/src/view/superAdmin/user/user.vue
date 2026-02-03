@@ -71,7 +71,7 @@
 
         <el-table-column label="操作" min-width="250" fixed="right">
           <template #default="scope">
-            <el-popover v-model="scope.row.visible" placement="top" width="160">
+            <el-popover v-model="scope.row.visible" placement="top" width="160" trigger="click">
               <p>确定要删除此用户吗</p>
               <div style="text-align: right; margin-top: 8px;">
                 <el-button type="primary" link @click="scope.row.visible = false">取消</el-button>

@@ -11,7 +11,7 @@
     <div v-else>
       <el-form :model="form" label-width="120px">
         <el-form-item label="删除当前sk：">
-          <el-popover placement="top" width="160">
+          <el-popover placement="top" width="160" trigger="click">
             <p>确定要删除并返回吗？</p>
             <div style="text-align: right; margin-top: 8px;">
               <el-button type="primary" @click="deleteSK">确定</el-button>

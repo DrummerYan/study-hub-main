@@ -316,9 +316,23 @@ const setOptions = async () =>{
   // 获取所有用户（不分页）
   const userRes = await getUserList({ page: 1, pageSize: 9999 })
   if (userRes.code === 0) {
-    // 只显示学员角色的用户（角色ID为9002，或角色名包含"学员"/"学生"）
     const allUsers = userRes.data.list || []
-    userList.value = allUsers.filter(user => {
+    // 先排除管理员/系统角色，避免出现在学员下拉中
+    const nonAdminUsers = allUsers.filter(user => {
+      const userRoles = user.authorities || []
+      const isAdminRole = userRoles.some(auth =>
+        auth.authorityName?.includes('超级管理员') ||
+        auth.authorityName?.includes('管理员') ||
+        auth.authorityId === 888 ||
+        auth.authorityId === 8881
+      )
+      const isAdminDefault = user.authorityId === 888 || user.authorityId === 8881 || user.authority_id === 888 || user.authority_id === 8881
+      return !isAdminRole && !isAdminDefault
+    })
+
+    // 只显示学员角色的用户（角色ID为9002，或角色名包含"学员"/"学生"）
+    userList.value = nonAdminUsers.filter(user => {
+      if (user.authorityId === 9002 || user.authority_id === 9002) return true
       const userRoles = user.authorities || []
       return userRoles.some(auth => 
         auth.authorityId === 9002 ||  // 精确匹配学员角色ID

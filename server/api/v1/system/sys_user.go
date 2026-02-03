@@ -147,6 +147,15 @@ func (b *BaseApi) Register(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
+	if r.Password == "" && r.PassWord != "" {
+		r.Password = r.PassWord
+	}
+	if len(r.AuthorityIds) == 0 && r.AuthorityId != 0 {
+		r.AuthorityIds = []uint{r.AuthorityId}
+	}
+	if len(r.AuthorityIds) > 0 {
+		r.AuthorityId = r.AuthorityIds[0]
+	}
 	err = utils.Verify(r, utils.RegisterVerify)
 	if err != nil {
 		response.FailWithMessage(err.Error(), c)
@@ -158,12 +167,19 @@ func (b *BaseApi) Register(c *gin.Context) {
 			AuthorityId: v,
 		})
 	}
-	user := &system.SysUser{Username: r.Username, NickName: r.NickName, Password: r.Password, HeaderImg: r.HeaderImg, AuthorityId: r.AuthorityId, Authorities: authorities, Enable: r.Enable, Phone: r.Phone, Email: r.Email}
+	user := &system.SysUser{Username: r.Username, NickName: r.NickName, Password: r.Password, HeaderImg: r.HeaderImg, AuthorityId: r.AuthorityId, Authorities: authorities, Enable: r.Enable, Phone: r.Phone, Email: r.Email, EduOrganizationID: r.EduOrganizationID}
 	userReturn, err := userService.Register(*user)
 	if err != nil {
 		global.GVA_LOG.Error("注册失败!", zap.Error(err))
 		response.FailWithDetailed(systemRes.SysUserResponse{User: userReturn}, "注册失败", c)
 		return
+	}
+	if len(r.AuthorityIds) > 0 {
+		if err := userService.SetUserAuthorities(userReturn.ID, r.AuthorityIds); err != nil {
+			global.GVA_LOG.Error("角色设置失败!", zap.Error(err))
+			response.FailWithDetailed(systemRes.SysUserResponse{User: userReturn}, "角色设置失败", c)
+			return
+		}
 	}
 	response.OkWithDetailed(systemRes.SysUserResponse{User: userReturn}, "注册成功", c)
 }
@@ -521,6 +537,15 @@ func (b *BaseApi) RegisterStudent(c *gin.Context) {
 	if err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
+	}
+	if r.Password == "" && r.PassWord != "" {
+		r.Password = r.PassWord
+	}
+	if len(r.AuthorityIds) == 0 && r.AuthorityId != 0 {
+		r.AuthorityIds = []uint{r.AuthorityId}
+	}
+	if len(r.AuthorityIds) > 0 {
+		r.AuthorityId = r.AuthorityIds[0]
 	}
 	err = utils.Verify(r, utils.RegisterVerify)
 	if err != nil {

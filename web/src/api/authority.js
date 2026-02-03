@@ -83,3 +83,18 @@ export const updateAuthority = (data) => {
     data
   })
 }
+
+// @Summary 获取角色使用情况
+// @Security ApiKeyAuth
+// @accept application/json
+// @Produce application/json
+// @Param data body {authorityId uint} true "角色ID"
+// @Success 200 {object} object "{"success":true,"data":{},"msg":"获取成功"}"
+// @Router /authority/getAuthorityUsageInfo [post]
+export const getAuthorityUsageInfo = (data) => {
+  return service({
+    url: '/authority/getAuthorityUsageInfo',
+    method: 'post',
+    data
+  })
+}

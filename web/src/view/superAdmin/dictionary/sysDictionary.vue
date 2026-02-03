@@ -100,6 +100,7 @@
               v-model="scope.row.visible"
               placement="top"
               width="160"
+              trigger="click"
             >
               <p>确定要删除吗？</p>
               <div style="text-align: right; margin-top: 8px">
@@ -122,7 +123,6 @@
                   icon="delete"
 
                   style="margin-left: 10px"
-                  @click="scope.row.visible = true"
                 >删除</el-button>
               </template>
             </el-popover>
