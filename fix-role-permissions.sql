@@ -44,6 +44,8 @@ WHERE v0 IN ('9001', '9002', '9003');
 -- Teacher (9001) policies
 INSERT INTO casbin_rule (ptype, v0, v1, v2) VALUES
   ('p', '9001', '/menu/getMenu', 'POST'),
+  ('p', '9001', '/user/setUserAuthority', 'POST'),
+  ('p', '9001', '/jwt/jsonInBlacklist', 'POST'),
   ('p', '9001', '/user/getUserInfo', 'GET'),
   ('p', '9001', '/user/getUserList', 'POST'),
   ('p', '9001', '/eduOrganization/createEduOrganization', 'POST'),
@@ -76,6 +78,8 @@ INSERT INTO casbin_rule (ptype, v0, v1, v2) VALUES
 -- Student (9002) policies
 INSERT INTO casbin_rule (ptype, v0, v1, v2) VALUES
   ('p', '9002', '/menu/getMenu', 'POST'),
+  ('p', '9002', '/user/setUserAuthority', 'POST'),
+  ('p', '9002', '/jwt/jsonInBlacklist', 'POST'),
   ('p', '9002', '/user/getUserInfo', 'GET'),
   ('p', '9002', '/eduCourse/findEduCourse', 'GET'),
   ('p', '9002', '/eduCourse/getEduCourseList', 'GET'),
@@ -85,6 +89,8 @@ INSERT INTO casbin_rule (ptype, v0, v1, v2) VALUES
 -- Manager (9003) policies
 INSERT INTO casbin_rule (ptype, v0, v1, v2) VALUES
   ('p', '9003', '/menu/getMenu', 'POST'),
+  ('p', '9003', '/user/setUserAuthority', 'POST'),
+  ('p', '9003', '/jwt/jsonInBlacklist', 'POST'),
   ('p', '9003', '/user/getUserInfo', 'GET'),
   ('p', '9003', '/user/getUserList', 'POST'),
   ('p', '9003', '/eduOrganization/createEduOrganization', 'POST'),

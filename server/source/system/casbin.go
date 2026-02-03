@@ -193,6 +193,8 @@ func (i *initCasbin) InitializeData(ctx context.Context) (context.Context, error
 		{Ptype: "p", V0: "888", V1: "/user/importExcelUser", V2: "POST"},
 
 		{Ptype: "p", V0: "9001", V1: "/menu/getMenu", V2: "POST"},
+		{Ptype: "p", V0: "9001", V1: "/user/setUserAuthority", V2: "POST"},
+		{Ptype: "p", V0: "9001", V1: "/jwt/jsonInBlacklist", V2: "POST"},
 		{Ptype: "p", V0: "9001", V1: "/user/getUserInfo", V2: "GET"},
 		{Ptype: "p", V0: "9001", V1: "/user/getUserList", V2: "POST"},
 		{Ptype: "p", V0: "9001", V1: "/eduOrganization/createEduOrganization", V2: "POST"},
@@ -223,6 +225,8 @@ func (i *initCasbin) InitializeData(ctx context.Context) (context.Context, error
 		{Ptype: "p", V0: "9001", V1: "/eduClassSession/getEduClassSessionList", V2: "GET"},
 
 		{Ptype: "p", V0: "9002", V1: "/menu/getMenu", V2: "POST"},
+		{Ptype: "p", V0: "9002", V1: "/user/setUserAuthority", V2: "POST"},
+		{Ptype: "p", V0: "9002", V1: "/jwt/jsonInBlacklist", V2: "POST"},
 		{Ptype: "p", V0: "9002", V1: "/user/getUserInfo", V2: "GET"},
 		{Ptype: "p", V0: "9002", V1: "/eduCourse/findEduCourse", V2: "GET"},
 		{Ptype: "p", V0: "9002", V1: "/eduCourse/getEduCourseList", V2: "GET"},
@@ -230,6 +234,8 @@ func (i *initCasbin) InitializeData(ctx context.Context) (context.Context, error
 		{Ptype: "p", V0: "9002", V1: "/eduClassSession/getEduClassSessionList", V2: "GET"},
 
 		{Ptype: "p", V0: "9003", V1: "/menu/getMenu", V2: "POST"},
+		{Ptype: "p", V0: "9003", V1: "/user/setUserAuthority", V2: "POST"},
+		{Ptype: "p", V0: "9003", V1: "/jwt/jsonInBlacklist", V2: "POST"},
 		{Ptype: "p", V0: "9003", V1: "/user/getUserInfo", V2: "GET"},
 		{Ptype: "p", V0: "9003", V1: "/user/getUserList", V2: "POST"},
 		{Ptype: "p", V0: "9003", V1: "/eduOrganization/createEduOrganization", V2: "POST"},

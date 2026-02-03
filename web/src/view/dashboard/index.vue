@@ -46,8 +46,10 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWeatherInfo } from '@/view/dashboard/weather.js'
 import { useUserStore } from '@/pinia/modules/user'
+import { useRouterStore } from '@/pinia/modules/router'
 
 const userStore = useUserStore()
+const routerStore = useRouterStore()
 const weatherInfo = useWeatherInfo()
 
 // 根据时间和用户信息生成问候语
@@ -67,25 +69,33 @@ const greetingMessage = computed(() => {
   }
   
   // 获取用户昵称或角色名
-  const userName = userStore.userInfo?.nickName || '用户'
   const roleName = userStore.userInfo?.authority?.authorityName || ''
+  const nickName = userStore.userInfo?.nickName || ''
+  // 当昵称是“超级管理员/管理员”等通用占位时，优先显示当前角色名
+  const isGenericAdminName = nickName === '超级管理员' || nickName === '管理员'
+  const displayName = (roleName && isGenericAdminName)
+    ? roleName
+    : (nickName || roleName || '用户')
   
   // 根据角色显示不同的祝福语
   let message = ''
   if (roleName.includes('学员') || roleName.includes('学生')) {
-    message = `${timeGreeting}，${userName}，欢迎回来！今天也要加油学习哦~`
+    message = `${timeGreeting}，${displayName}，欢迎回来！今天也要加油学习哦~`
   } else if (roleName.includes('教师') || roleName.includes('老师')) {
-    message = `${timeGreeting}，${userName}老师，欢迎回来！`
+    const teacherName = (displayName.includes('教师') || displayName.includes('老师'))
+      ? displayName
+      : `${displayName}老师`
+    message = `${timeGreeting}，${teacherName}，欢迎回来！`
   } else if (roleName.includes('管理员')) {
-    message = `${timeGreeting}，${userName}，请开始一天的工作吧`
+    message = `${timeGreeting}，${displayName}，请开始一天的工作吧`
   } else {
-    message = `${timeGreeting}，${userName}，欢迎回来！`
+    message = `${timeGreeting}，${displayName}，欢迎回来！`
   }
   
   return message
 })
 
-const toolCards = ref([
+const quickEntryDefs = [
   {
     label: '用户管理',
     icon: 'monitor',
@@ -121,7 +131,23 @@ const toolCards = ref([
     color: '#ff85c0',
     bg: 'rgba(255, 133, 192,.3)',
   },
-])
+]
+
+// 快捷入口：名称取当前菜单标题，权限不足则不显示
+const toolCards = computed(() => {
+  // 依赖异步路由加载标记，确保菜单加载后重新计算
+  routerStore.asyncRouterFlag
+  return quickEntryDefs
+    .map((item) => {
+      const routeInfo = routerStore.routeMap[item.name]
+      if (!routeInfo || routeInfo.hidden || routeInfo.meta?.hidden) return null
+      return {
+        ...item,
+        label: routeInfo.meta?.title || item.label,
+      }
+    })
+    .filter(Boolean)
+})
 
 const router = useRouter()
 
