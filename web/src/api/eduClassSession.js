@@ -95,3 +95,17 @@ export const getEduClassSessionList = (params) => {
     params
   })
 }
+
+// @Tags EduClassSession
+// @Summary 获取剩余课时少于5节的学生列表
+// @Security ApiKeyAuth
+// @accept application/json
+// @Produce application/json
+// @Router /eduClassSession/getStudentsWithLessThanFiveSessions [get]
+export const getStudentsWithLessThanFiveSessions = (params) => {
+  return service({
+    url: '/eduClassSession/getStudentsWithLessThanFiveSessions',
+    method: 'get',
+    params
+  })
+}

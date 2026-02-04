@@ -60,6 +60,7 @@ func (eduClassSessionService *EduClassSessionService) GetEduClassSessionInfoList
 	// 创建db
 	db := global.GVA_DB.Model(&edu_user_course.EduClassSession{})
 	var eduClassSessions []edu_user_course.EduClassSession
+	joinedEnrollment := false
 	// 如果有条件搜索 下方会自动创建搜索语句
 	if info.StartCreatedAt != nil && info.EndCreatedAt != nil {
 		db = db.Where("edu_class_session.created_at BETWEEN ? AND ?", info.StartCreatedAt, info.EndCreatedAt)
@@ -68,14 +69,27 @@ func (eduClassSessionService *EduClassSessionService) GetEduClassSessionInfoList
 	if info.EnrollmentId != nil && *info.EnrollmentId > 0 {
 		db = db.Where("edu_class_session.enrollment_id = ?", *info.EnrollmentId)
 	}
-	
+	// 按教师筛选
+	if info.TeacherId != nil && *info.TeacherId > 0 {
+		db = db.Where("edu_class_session.teacher_id = ?", *info.TeacherId)
+	}
+	// 按课程筛选
+	if info.CourseId > 0 {
+		db = db.Joins("LEFT JOIN edu_enrollment ON edu_enrollment.id = edu_class_session.enrollment_id").
+			Where("edu_enrollment.course_id = ?", info.CourseId)
+		joinedEnrollment = true
+	}
+
 	// 按学员姓名搜索
 	if info.UserName != "" {
-		db = db.Joins("LEFT JOIN edu_enrollment ON edu_enrollment.id = edu_class_session.enrollment_id").
-			Joins("LEFT JOIN sys_users ON sys_users.id = edu_enrollment.user_id").
+		if !joinedEnrollment {
+			db = db.Joins("LEFT JOIN edu_enrollment ON edu_enrollment.id = edu_class_session.enrollment_id")
+			joinedEnrollment = true
+		}
+		db = db.Joins("LEFT JOIN sys_users ON sys_users.id = edu_enrollment.user_id").
 			Where("sys_users.nick_name LIKE ?", "%"+info.UserName+"%")
 	}
-	
+
 	err = db.Count(&total).Error
 	if err != nil {
 		return
@@ -132,11 +146,14 @@ func (eduClassSessionService *EduClassSessionService) GetStudentsWithLessThanFiv
 	var students []studentWithRemainingSessionsRes.StudentWithRemainingSessions
 
 	// 查询剩余课时少于5节的学生列表
-	result := global.GVA_DB.Table("sys_users").
+	db := global.GVA_DB.Table("sys_users").
 		Select("sys_users.*, edu_enrollment.remaining_sessions").
 		Joins("JOIN edu_enrollment on edu_enrollment.user_id = sys_users.id").
-		Where("edu_enrollment.remaining_sessions < ? and sys_users.edu_organization_id= ? ", 5, organizationID).
-		Scan(&students)
+		Where("edu_enrollment.remaining_sessions < ? ", 5)
+	if organizationID > 0 {
+		db = db.Where("sys_users.edu_organization_id= ?", organizationID)
+	}
+	result := db.Scan(&students)
 
 	if result.Error != nil {
 		return nil, result.Error

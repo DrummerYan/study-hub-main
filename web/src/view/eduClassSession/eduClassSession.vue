@@ -5,6 +5,26 @@
       <el-form-item label="学员姓名">
         <el-input v-model="searchInfo.userName" placeholder="搜索学员姓名" clearable style="width: 200px" />
       </el-form-item>
+      <el-form-item label="授课老师">
+        <el-select v-model="searchInfo.teacherId" placeholder="选择老师" clearable filterable style="width: 200px">
+          <el-option
+            v-for="teacher in teacherList"
+            :key="teacher.ID"
+            :label="`${teacher.nickName} (${teacher.phone || teacher.userName})`"
+            :value="teacher.ID"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="课程">
+        <el-select v-model="searchInfo.courseId" placeholder="选择课程" clearable filterable style="width: 200px">
+          <el-option
+            v-for="course in courseList"
+            :key="course.ID"
+            :label="course.courseName"
+            :value="course.ID"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item label="报名ID">
         <el-input v-model.number="searchInfo.enrollmentId" placeholder="按报名ID筛选" clearable style="width: 200px" />
       </el-form-item>
@@ -26,6 +46,9 @@
               <el-icon><InfoFilled /></el-icon>
               课时历史记录（仅查询，新增课时请在"报名管理"中操作）
             </el-tag>
+            <el-button v-if="canViewLowSessions" type="warning" icon="bell" style="margin-left: 12px" @click="openLowSessions">
+              课时不足提醒
+            </el-button>
         </div>
         <el-table
         ref="multipleTable"
@@ -76,6 +99,18 @@
             />
         </div>
     </div>
+    <el-dialog v-model="lowSessionsVisible" title="剩余课时不足学员" width="700px">
+      <el-table :data="lowSessions" style="width: 100%">
+        <el-table-column align="left" label="学员姓名" prop="nickName" width="140" />
+        <el-table-column align="left" label="手机号" prop="phone" width="140" />
+        <el-table-column align="left" label="剩余课时" prop="remainingSessions" width="120" />
+      </el-table>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="lowSessionsVisible = false">关 闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -88,19 +123,26 @@ export default {
 <script setup>
 import {
   deleteEduClassSession,
-  getEduClassSessionList
+  getEduClassSessionList,
+  getStudentsWithLessThanFiveSessions
 } from '@/api/eduClassSession'
+import { getEduCourseList } from '@/api/eduCourse'
+import { getUserList } from '@/api/user'
 
 // 全量引入格式化工具 请按需保留
 import { formatDate } from '@/utils/format'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/pinia/modules/user'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const canViewLowSessions = computed(() => {
+  const roleId = userStore.userInfo?.authority?.authorityId || userStore.userInfo?.authorityId
+  return roleId !== 9002 // 学员不显示
+})
 
 // =========== 表格控制部分 ===========
 const page = ref(1)
@@ -108,6 +150,10 @@ const total = ref(0)
 const pageSize = ref(10)
 const tableData = ref([])
 const searchInfo = ref({})
+const teacherList = ref([])
+const courseList = ref([])
+const lowSessionsVisible = ref(false)
+const lowSessions = ref([])
 
 // 重置
 const onReset = () => {
@@ -143,6 +189,28 @@ const handleCurrentChange = (val) => {
   getTableData()
 }
 
+// 初始化下拉选项（老师/课程）
+const setOptions = async () => {
+  const userRes = await getUserList({ page: 1, pageSize: 9999 })
+  if (userRes.code === 0) {
+    const allUsers = userRes.data.list || []
+    // 只显示教师角色
+    teacherList.value = allUsers.filter(user => {
+      const userRoles = user.authorities || []
+      if (user.authorityId === 9001 || user.authority_id === 9001) return true
+      return userRoles.some(auth =>
+        auth.authorityId === 9001 ||
+        auth.authorityName?.includes('教师') ||
+        auth.authorityName?.includes('老师')
+      )
+    })
+  }
+  const courseRes = await getEduCourseList({ page: 1, pageSize: 9999 })
+  if (courseRes.code === 0) {
+    courseList.value = courseRes.data.list || []
+  }
+}
+
 // 查询
 const getTableData = async() => {
   const table = await getEduClassSessionList({ page: page.value, pageSize: pageSize.value, ...searchInfo.value })
@@ -159,6 +227,7 @@ onMounted(() => {
   if (route.query.enrollmentId) {
     searchInfo.value.enrollmentId = Number(route.query.enrollmentId)
   }
+  setOptions()
   getTableData()
 })
 
@@ -200,6 +269,19 @@ const deleteEduClassSessionFunc = async (row) => {
             message: res.msg || '删除失败'
         })
     }
+}
+
+const openLowSessions = async () => {
+  const res = await getStudentsWithLessThanFiveSessions()
+  if (res.code === 0) {
+    lowSessions.value = res.data.list || []
+    lowSessionsVisible.value = true
+  } else {
+    ElMessage({
+      type: 'error',
+      message: res.msg || '获取失败'
+    })
+  }
 }
 </script>
 

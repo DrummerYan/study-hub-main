@@ -17,6 +17,7 @@ type EduClassSessionSearch struct {
 	StartCreatedAt *time.Time `json:"startCreatedAt" form:"startCreatedAt"`
 	EndCreatedAt   *time.Time `json:"endCreatedAt" form:"endCreatedAt"`
 	UserName       string     `json:"userName" form:"userName"` // 学员姓名搜索
+	CourseId       uint       `json:"courseId" form:"courseId"` // 课程ID筛选
 	request.PageInfo
 }
 
