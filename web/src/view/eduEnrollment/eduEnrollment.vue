@@ -126,14 +126,24 @@
         <el-form-item label="课程:">
           <el-input v-model="consumeForm.courseName" :disabled="true" />
         </el-form-item>
+        <el-form-item label="授课老师:" prop="teacherId">
+          <el-select v-model="consumeForm.teacherId" placeholder="选择老师" filterable clearable style="width: 100%">
+            <el-option
+              v-for="teacher in teacherList"
+              :key="teacher.ID"
+              :label="`${teacher.nickName} (${teacher.phone || teacher.userName})`"
+              :value="teacher.ID"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="剩余课时:">
           <el-tag type="success" size="large">{{ consumeForm.remainingSessions }} 课时</el-tag>
         </el-form-item>
         <el-form-item label="消课数量:" prop="sessionsToConsume">
           <el-input-number v-model="consumeForm.sessionsToConsume" :min="1" :max="consumeForm.remainingSessions" :step="1" />
         </el-form-item>
-        <el-form-item label="上课日期:" prop="useDate">
-          <el-date-picker v-model="consumeForm.useDate" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" style="width: 100%" />
+        <el-form-item label="上课时间:" prop="useDate">
+          <el-date-picker v-model="consumeForm.useDate" type="datetime" placeholder="选择时间" value-format="YYYY-MM-DD HH:mm" style="width: 100%" />
         </el-form-item>
         <el-form-item label="备注原因:" prop="reasonType">
           <el-select v-model="consumeForm.reasonType" placeholder="请选择原因" style="width: 100%" @change="onConsumeReasonChange">
@@ -165,6 +175,16 @@
         <el-form-item label="课程:">
           <el-input v-model="addForm.courseName" :disabled="true" />
         </el-form-item>
+        <el-form-item label="授课老师:" prop="teacherId">
+          <el-select v-model="addForm.teacherId" placeholder="选择老师" filterable clearable style="width: 100%">
+            <el-option
+              v-for="teacher in teacherList"
+              :key="teacher.ID"
+              :label="`${teacher.nickName} (${teacher.phone || teacher.userName})`"
+              :value="teacher.ID"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="当前剩余:">
           <el-tag type="info" size="large">{{ addForm.remainingSessions }} 课时</el-tag>
         </el-form-item>
@@ -172,7 +192,7 @@
           <el-input-number v-model="addForm.sessionsToAdd" :min="1" :max="999" :step="1" />
         </el-form-item>
         <el-form-item label="日期:" prop="useDate">
-          <el-date-picker v-model="addForm.useDate" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" style="width: 100%" />
+          <el-date-picker v-model="addForm.useDate" type="datetime" placeholder="选择时间" value-format="YYYY-MM-DD HH:mm" style="width: 100%" />
         </el-form-item>
         <el-form-item label="备注原因:" prop="reasonType">
           <el-select v-model="addForm.reasonType" placeholder="请选择原因" style="width: 100%" @change="onAddReasonChange">
@@ -223,16 +243,20 @@ import { getDictFunc, formatDate, formatBoolean, filterDict } from '@/utils/form
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '@/pinia/modules/user'
 
 const router = useRouter()
+const userStore = useUserStore()
 
-// 辅助函数：格式化日期为 YYYY-MM-DD 格式
-const formatDateOnly = (date) => {
+// 辅助函数：格式化日期时间为 YYYY-MM-DD HH:mm
+const formatDateTime = (date) => {
   const d = new Date(date)
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  const hours = String(d.getHours()).padStart(2, '0')
+  const minutes = String(d.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}`
 }
 
 // 自动化生成的字典（可能为空）以及字段
@@ -307,8 +331,9 @@ getTableData()
 
 // ============== 表格控制部分结束 ===============
 
-// 用户列表和课程列表
+// 用户列表、教师列表和课程列表
 const userList = ref([])
+const teacherList = ref([])
 const courseList = ref([])
 
 // 获取用户列表和课程列表
@@ -340,6 +365,17 @@ const setOptions = async () =>{
         auth.authorityName?.includes('学生')
       )
     })
+
+    // 只显示教师角色的用户（角色ID为9001，或角色名包含"教师"/"老师"）
+    teacherList.value = nonAdminUsers.filter(user => {
+      if (user.authorityId === 9001 || user.authority_id === 9001) return true
+      const userRoles = user.authorities || []
+      return userRoles.some(auth =>
+        auth.authorityId === 9001 ||  // 精确匹配教师角色ID
+        auth.authorityName?.includes('教师') ||
+        auth.authorityName?.includes('老师')
+      )
+    })
   }
   
   // 获取所有课程（不分页）
@@ -351,6 +387,12 @@ const setOptions = async () =>{
 
 // 初始化加载
 setOptions()
+
+const getTeacherNameById = (id) => {
+  if (!id) return ''
+  const teacher = teacherList.value.find(t => t.ID === id || t.id === id)
+  return teacher?.nickName || teacher?.userName || ''
+}
 
 
 // 多选数据
@@ -514,9 +556,11 @@ const consumeForm = ref({
   courseId: 0,
   userName: '',
   courseName: '',
+  teacherId: 0,
+  teacherName: '',
   remainingSessions: 0,
   sessionsToConsume: 1,
-  useDate: formatDateOnly(new Date()),
+  useDate: formatDateTime(new Date()),
   reasonType: '',  // 原因类型（下拉选择）
   customReason: ''  // 自定义原因（仅当reasonType为"自定义"时使用）
 })
@@ -527,7 +571,7 @@ const consumeRules = reactive({
     { type: 'number', min: 1, message: '消课数量至少为1', trigger: 'blur' }
   ],
   useDate: [
-    { required: true, message: '请选择上课日期', trigger: 'change' }
+    { required: true, message: '请选择上课时间', trigger: 'change' }
   ],
   reasonType: [
     { required: true, message: '请选择原因', trigger: 'change' }
@@ -552,9 +596,11 @@ const openConsumeDialog = (row) => {
     courseId: row.courseId,
     userName: row.userName,
     courseName: row.eduCourse?.courseName || '',
+    teacherId: userStore.userInfo?.ID || 0,
+    teacherName: userStore.userInfo?.nickName || '',
     remainingSessions: row.remainingSessions || 0,
     sessionsToConsume: 1,
-    useDate: formatDateOnly(new Date()),
+    useDate: formatDateTime(new Date()),
     reasonType: '',
     customReason: ''
   }
@@ -577,12 +623,15 @@ const confirmConsume = async () => {
       ? consumeForm.value.customReason 
       : consumeForm.value.reasonType
     
+    const teacherName = getTeacherNameById(consumeForm.value.teacherId) || consumeForm.value.teacherName || ''
     const params = {
       userId: consumeForm.value.userId,
       courseId: consumeForm.value.courseId,
       sessionsToConsume: consumeForm.value.sessionsToConsume,
       useDate: consumeForm.value.useDate,
-      reason: finalReason
+      reason: finalReason,
+      teacherId: consumeForm.value.teacherId || 0,
+      teacherName
     }
     
     const res = await consumeSession(params)
@@ -605,9 +654,11 @@ const addForm = ref({
   courseId: 0,
   userName: '',
   courseName: '',
+  teacherId: 0,
+  teacherName: '',
   remainingSessions: 0,
   sessionsToAdd: 1,
-  useDate: formatDateOnly(new Date()),
+  useDate: formatDateTime(new Date()),
   reasonType: '',  // 原因类型（下拉选择）
   customReason: ''  // 自定义原因（仅当reasonType为"自定义"时使用）
 })
@@ -643,9 +694,11 @@ const openAddDialog = (row) => {
     courseId: row.courseId,
     userName: row.userName,
     courseName: row.eduCourse?.courseName || '',
+    teacherId: userStore.userInfo?.ID || 0,
+    teacherName: userStore.userInfo?.nickName || '',
     remainingSessions: row.remainingSessions || 0,
     sessionsToAdd: 1,
-    useDate: formatDateOnly(new Date()),
+    useDate: formatDateTime(new Date()),
     reasonType: '',
     customReason: ''
   }
@@ -668,12 +721,15 @@ const confirmAdd = async () => {
       ? addForm.value.customReason 
       : addForm.value.reasonType
     
+    const teacherName = getTeacherNameById(addForm.value.teacherId) || addForm.value.teacherName || ''
     const params = {
       userId: addForm.value.userId,
       courseId: addForm.value.courseId,
       sessionsToAdd: addForm.value.sessionsToAdd,
       useDate: addForm.value.useDate,
-      reason: finalReason
+      reason: finalReason,
+      teacherId: addForm.value.teacherId || 0,
+      teacherName
     }
     
     const res = await addSession(params)

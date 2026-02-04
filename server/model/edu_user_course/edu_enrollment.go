@@ -19,7 +19,7 @@ type EduEnrollment struct {
 	TotalSessions     *int                       `json:"totalSessions" form:"totalSessions" gorm:"column:total_sessions;comment:总课时数;size:10;"`
 	RemainingSessions *int                       `json:"remainingSessions" form:"remainingSessions" gorm:"column:remaining_sessions;comment:剩余课时数;size:10;"`
 	EduCourse         edu_organization.EduCourse `json:"eduCourse" gorm:"foreignKey:CourseId"`
-	UserName          string                     `json:"userName" gorm:"-"` // 用户姓名（从 sys_users 表联查）
+	UserName          string                     `json:"userName" gorm:"-"`  // 用户姓名（从 sys_users 表联查）
 	UserPhone         string                     `json:"userPhone" gorm:"-"` // 用户手机号（从 sys_users 表联查）
 }
 
@@ -34,7 +34,9 @@ type ConsumptionClassResp struct {
 	CourseId          int    `json:"courseId"`          // 课程ID
 	SessionsToConsume int    `json:"sessionsToConsume"` // 消耗课时数
 	Reason            string `json:"reason"`            // 消耗原因
-	UseDate           string `json:"useDate"`
+	UseDate           string `json:"useDate"`           // 上课时间（YYYY-MM-DD 或 YYYY-MM-DD HH:mm）
+	TeacherId         int    `json:"teacherId"`         // 教师ID（可选）
+	TeacherName       string `json:"teacherName"`       // 教师姓名（可选）
 }
 
 // AddSessionReq 增加课时请求参数
@@ -43,5 +45,7 @@ type AddSessionResp struct {
 	CourseId      int    `json:"courseId"`      // 课程ID
 	SessionsToAdd int    `json:"sessionsToAdd"` // 增加课时数
 	Reason        string `json:"reason"`        // 消耗原因
-	UseDate       string `json:"useDate"`
+	UseDate       string `json:"useDate"`       // 日期（YYYY-MM-DD 或 YYYY-MM-DD HH:mm）
+	TeacherId     int    `json:"teacherId"`     // 教师ID（可选）
+	TeacherName   string `json:"teacherName"`   // 教师姓名（可选）
 }

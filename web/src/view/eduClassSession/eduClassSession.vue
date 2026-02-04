@@ -38,6 +38,7 @@
             <template #default="scope">{{ formatDate(scope.row.useDate) }}</template>
         </el-table-column>
         <el-table-column align="left" label="学员姓名" prop="userName" width="120" />
+        <el-table-column align="left" label="授课老师" prop="teacherName" width="120" />
         <el-table-column align="left" label="课程名称" prop="courseName" width="150" />
         <el-table-column align="left" label="操作类型" width="100">
             <template #default="scope">

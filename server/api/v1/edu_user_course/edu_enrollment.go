@@ -7,6 +7,7 @@ import (
 	"github.com/KeSilent/study-hub/server/model/edu_user_course"
 	edu_user_courseReq "github.com/KeSilent/study-hub/server/model/edu_user_course/request"
 	"github.com/KeSilent/study-hub/server/service"
+	"github.com/KeSilent/study-hub/server/utils"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -197,7 +198,26 @@ func (eduEnrollmentApi *EduEnrollmentApi) ConsumptionClass(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := eduEnrollmentService.ConsumeSession(eduEnrollment.UserId, eduEnrollment.CourseId, eduEnrollment.SessionsToConsume, eduEnrollment.Reason, eduEnrollment.UseDate); err != nil {
+	// 默认使用当前登录用户作为教师
+	if eduEnrollment.TeacherId == 0 || eduEnrollment.TeacherName == "" {
+		if claims := utils.GetUserInfo(c); claims != nil {
+			if eduEnrollment.TeacherId == 0 {
+				eduEnrollment.TeacherId = int(claims.BaseClaims.ID)
+			}
+			if eduEnrollment.TeacherName == "" {
+				eduEnrollment.TeacherName = claims.BaseClaims.NickName
+			}
+		}
+	}
+	if err := eduEnrollmentService.ConsumeSession(
+		eduEnrollment.UserId,
+		eduEnrollment.CourseId,
+		eduEnrollment.SessionsToConsume,
+		eduEnrollment.Reason,
+		eduEnrollment.UseDate,
+		eduEnrollment.TeacherId,
+		eduEnrollment.TeacherName,
+	); err != nil {
 		global.GVA_LOG.Error("消耗失败!", zap.Error(err))
 		response.FailWithMessage("消耗失败", c)
 	} else {
@@ -217,7 +237,26 @@ func (eduEnrollmentApi *EduEnrollmentApi) AddSession(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	if err := eduEnrollmentService.AddSession(eduEnrollment.UserId, eduEnrollment.CourseId, eduEnrollment.SessionsToAdd, eduEnrollment.Reason, eduEnrollment.UseDate); err != nil {
+	// 默认使用当前登录用户作为教师
+	if eduEnrollment.TeacherId == 0 || eduEnrollment.TeacherName == "" {
+		if claims := utils.GetUserInfo(c); claims != nil {
+			if eduEnrollment.TeacherId == 0 {
+				eduEnrollment.TeacherId = int(claims.BaseClaims.ID)
+			}
+			if eduEnrollment.TeacherName == "" {
+				eduEnrollment.TeacherName = claims.BaseClaims.NickName
+			}
+		}
+	}
+	if err := eduEnrollmentService.AddSession(
+		eduEnrollment.UserId,
+		eduEnrollment.CourseId,
+		eduEnrollment.SessionsToAdd,
+		eduEnrollment.Reason,
+		eduEnrollment.UseDate,
+		eduEnrollment.TeacherId,
+		eduEnrollment.TeacherName,
+	); err != nil {
 		global.GVA_LOG.Error("增加课时失败!", zap.Error(err))
 		response.FailWithMessage("增加课时失败", c)
 	} else {

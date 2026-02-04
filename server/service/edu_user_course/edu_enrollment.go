@@ -7,6 +7,7 @@ package edu_user_course
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/KeSilent/study-hub/server/global"
@@ -75,12 +76,12 @@ func (eduEnrollmentService *EduEnrollmentService) GetEduEnrollmentInfoList(info 
 	if info.StartCreatedAt != nil && info.EndCreatedAt != nil {
 		db = db.Where("created_at BETWEEN ? AND ?", info.StartCreatedAt, info.EndCreatedAt)
 	}
-	
+
 	// 按课程ID搜索
 	if info.CourseId != nil && *info.CourseId > 0 {
 		db = db.Where("course_id = ?", *info.CourseId)
 	}
-	
+
 	// 按学员姓名或手机号搜索（需要关联查询用户表）
 	if info.UserName != "" || info.UserPhone != "" {
 		db = db.Joins("JOIN sys_users ON sys_users.id = edu_enrollment.user_id")
@@ -91,7 +92,7 @@ func (eduEnrollmentService *EduEnrollmentService) GetEduEnrollmentInfoList(info 
 			db = db.Where("sys_users.phone LIKE ?", "%"+info.UserPhone+"%")
 		}
 	}
-	
+
 	err = db.Count(&total).Error
 	if err != nil {
 		return
@@ -125,7 +126,7 @@ func (eduEnrollmentService *EduEnrollmentService) GetEduEnrollmentInfoList(info 
 }
 
 // ConsumeSession 消耗课时
-func (eduEnrollmentService *EduEnrollmentService) ConsumeSession(userID, courseID, sessionsToConsume int, reason string, useData string) error {
+func (eduEnrollmentService *EduEnrollmentService) ConsumeSession(userID, courseID, sessionsToConsume int, reason string, useData string, teacherId int, teacherName string) error {
 	var enrollment edu_user_course.EduEnrollment
 	db := global.GVA_DB
 
@@ -146,9 +147,9 @@ func (eduEnrollmentService *EduEnrollmentService) ConsumeSession(userID, courseI
 	*enrollment.RemainingSessions -= sessionsToConsume
 
 	enenrollmentId := int(enrollment.ID)
-	t, err := time.Parse("2006-01-02", useData)
+	t, err := parseUseDate(useData)
 	if err != nil {
-		return errors.New("日期转换失败:" + err.Error())
+		return err
 	}
 
 	// 获取学员姓名
@@ -158,6 +159,16 @@ func (eduEnrollmentService *EduEnrollmentService) ConsumeSession(userID, courseI
 	err = db.Table("sys_users").Select("nick_name").Where("id = ?", userID).First(&user).Error
 	if err != nil {
 		return errors.New("查询学员信息失败")
+	}
+
+	// 获取教师姓名（可选）
+	if teacherName == "" && teacherId > 0 {
+		var teacher struct {
+			NickName string
+		}
+		if err := db.Table("sys_users").Select("nick_name").Where("id = ?", teacherId).First(&teacher).Error; err == nil {
+			teacherName = teacher.NickName
+		}
 	}
 
 	// 更新数据库中的报名信息
@@ -174,6 +185,8 @@ func (eduEnrollmentService *EduEnrollmentService) ConsumeSession(userID, courseI
 		NumSessions:  &sessionsToConsume,
 		CourseName:   enrollment.EduCourse.CourseName,
 		UserName:     user.NickName,
+		TeacherId:    intPointer(teacherId),
+		TeacherName:  teacherName,
 		UseDate:      t,
 	}
 
@@ -187,7 +200,7 @@ func (eduEnrollmentService *EduEnrollmentService) ConsumeSession(userID, courseI
 }
 
 // AddSession 为用户的课程添加课时
-func (eduEnrollmentService *EduEnrollmentService) AddSession(userID, courseID, sessionsToAdd int, reason string, useData string) error {
+func (eduEnrollmentService *EduEnrollmentService) AddSession(userID, courseID, sessionsToAdd int, reason string, useData string, teacherId int, teacherName string) error {
 	var enrollment edu_user_course.EduEnrollment
 	db := global.GVA_DB
 
@@ -208,9 +221,9 @@ func (eduEnrollmentService *EduEnrollmentService) AddSession(userID, courseID, s
 	}
 	*enrollment.RemainingSessions += sessionsToAdd
 
-	t, err := time.Parse("2006-01-02", useData)
+	t, err := parseUseDate(useData)
 	if err != nil {
-		return errors.New("日期转换失败:" + err.Error())
+		return err
 	}
 
 	// 获取学员姓名
@@ -220,6 +233,16 @@ func (eduEnrollmentService *EduEnrollmentService) AddSession(userID, courseID, s
 	err = db.Table("sys_users").Select("nick_name").Where("id = ?", userID).First(&user).Error
 	if err != nil {
 		return errors.New("查询学员信息失败")
+	}
+
+	// 获取教师姓名（可选）
+	if teacherName == "" && teacherId > 0 {
+		var teacher struct {
+			NickName string
+		}
+		if err := db.Table("sys_users").Select("nick_name").Where("id = ?", teacherId).First(&teacher).Error; err == nil {
+			teacherName = teacher.NickName
+		}
 	}
 
 	// 更新数据库中的报名信息
@@ -238,6 +261,8 @@ func (eduEnrollmentService *EduEnrollmentService) AddSession(userID, courseID, s
 		NumSessions:  &sessionsToAdd,
 		CourseName:   enrollment.EduCourse.CourseName,
 		UserName:     user.NickName,
+		TeacherId:    intPointer(teacherId),
+		TeacherName:  teacherName,
 		UseDate:      t,
 	}
 
@@ -248,6 +273,31 @@ func (eduEnrollmentService *EduEnrollmentService) AddSession(userID, courseID, s
 	}
 
 	return nil
+}
+
+func parseUseDate(useData string) (time.Time, error) {
+	trimmed := strings.TrimSpace(useData)
+	if trimmed == "" {
+		return time.Now(), nil
+	}
+	layouts := []string{
+		"2006-01-02 15:04:05",
+		"2006-01-02 15:04",
+		"2006-01-02",
+	}
+	for _, layout := range layouts {
+		if t, err := time.ParseInLocation(layout, trimmed, time.Local); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, errors.New("日期转换失败: 格式应为 YYYY-MM-DD 或 YYYY-MM-DD HH:mm")
+}
+
+func intPointer(val int) *int {
+	if val <= 0 {
+		return nil
+	}
+	return &val
 }
 
 // GetEduEnrollmentByUser 根据用户ID和课程ID获取报名信息

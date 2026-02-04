@@ -16,6 +16,8 @@ type EduClassSession struct {
 	NumSessions   *int          `json:"numSessions" form:"numSessions" gorm:"column:num_sessions;comment:课时数量;size:10;"`
 	CourseName    string        `json:"courseName" form:"courseName" gorm:"column:course_name;comment:课程名称;size:255;"`
 	UserName      string        `json:"userName" form:"userName" gorm:"column:user_name;comment:学员姓名;size:255;"`
+	TeacherId     *int          `json:"teacherId" form:"teacherId" gorm:"column:teacher_id;comment:教师ID;size:10;"`
+	TeacherName   string        `json:"teacherName" form:"teacherName" gorm:"column:teacher_name;comment:教师姓名;size:255;"`
 	EduEnrollment EduEnrollment `json:"eduEnrollment" gorm:"foreignKey:EnrollmentId"` // 用户科目
 	UseDate       time.Time     `json:"useDate" form:"useDate" gorm:"column:use_date;comment:使用日期;size:255;"`
 }
