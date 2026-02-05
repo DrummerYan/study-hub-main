@@ -63,6 +63,7 @@ func (e *ensureTables) MigrateTable(ctx context.Context) (context.Context, error
 		edu_organization.EduCourse{},
 		edu_organization.EduOrganization{},
 		edu_user_course.EduEnrollment{},
+		edu_user_course.EduPayment{},
 	}
 	for _, t := range tables {
 		_ = db.AutoMigrate(&t)
@@ -103,6 +104,7 @@ func (e *ensureTables) TableCreated(ctx context.Context) bool {
 		edu_organization.EduCourse{},
 		edu_organization.EduOrganization{},
 		edu_user_course.EduEnrollment{},
+		edu_user_course.EduPayment{},
 	}
 	yes := true
 	for _, t := range tables {

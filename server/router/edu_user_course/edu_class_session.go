@@ -30,5 +30,6 @@ func (s *EduClassSessionRouter) InitEduClassSessionRouter(Router *gin.RouterGrou
 		eduClassSessionRouterWithoutRecord.GET("getEduClassSessionList", eduClassSessionApi.GetEduClassSessionList)                           // 获取EduClassSession列表
 		eduClassSessionRouterWithoutRecord.GET("getEduClassSessionListByUser", eduClassSessionApi.GetEduClassSessionListByUser)               // 获取用户的消费列表
 		eduClassSessionRouterWithoutRecord.GET("getStudentsWithLessThanFiveSessions", eduClassSessionApi.GetStudentsWithLessThanFiveSessions) // 获取剩余课时少于5节的学生列表
+		eduClassSessionRouterWithoutRecord.GET("getMonthlyChargeSummary", eduClassSessionApi.GetMonthlyChargeSummary)                         // 获取月度计费汇总
 	}
 }

@@ -109,3 +109,17 @@ export const getStudentsWithLessThanFiveSessions = (params) => {
     params
   })
 }
+
+// @Tags EduClassSession
+// @Summary 获取月度计费汇总
+// @Security ApiKeyAuth
+// @accept application/json
+// @Produce application/json
+// @Router /eduClassSession/getMonthlyChargeSummary [get]
+export const getMonthlyChargeSummary = (params) => {
+  return service({
+    url: '/eduClassSession/getMonthlyChargeSummary',
+    method: 'get',
+    params
+  })
+}

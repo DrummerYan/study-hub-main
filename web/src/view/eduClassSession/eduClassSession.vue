@@ -41,6 +41,25 @@
       </el-form>
     </div>
     <div class="gva-table-box">
+        <div v-if="isSuperAdmin" class="gva-search-box" style="margin-bottom: 12px;">
+          <el-form :inline="true">
+            <el-form-item label="统计月份">
+              <el-date-picker v-model="summaryMonth" type="month" value-format="YYYY-MM" placeholder="选择月份" />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" icon="refresh" @click="loadMonthlySummary">刷新</el-button>
+            </el-form-item>
+            <el-form-item>
+              <el-tag type="success">计费节数：{{ monthlySummary.chargeableSessions }}</el-tag>
+            </el-form-item>
+            <el-form-item>
+              <el-tag type="warning">非计费节数：{{ monthlySummary.nonChargeableSessions }}</el-tag>
+            </el-form-item>
+            <el-form-item>
+              <el-tag type="info">计费金额：{{ formatMoney(monthlySummary.chargeableAmount) }}</el-tag>
+            </el-form-item>
+          </el-form>
+        </div>
         <div class="gva-btn-list">
             <el-tag type="info" size="large" style="padding: 10px 20px;">
               <el-icon><InfoFilled /></el-icon>
@@ -58,7 +77,12 @@
         row-key="ID"
         >
         <el-table-column align="left" label="操作日期" width="120">
-            <template #default="scope">{{ formatDate(scope.row.useDate) }}</template>
+            <template #default="scope">
+              <div class="dt-cell">
+                <div class="dt-date">{{ getDatePart(scope.row.useDate) }}</div>
+                <div class="dt-time">{{ getTimePart(scope.row.useDate) }}</div>
+              </div>
+            </template>
         </el-table-column>
         <el-table-column align="left" label="学员姓名" prop="userName" width="120" />
         <el-table-column align="left" label="授课老师" prop="teacherName" width="120" />
@@ -75,6 +99,19 @@
                 <span :style="{ color: scope.row.action === 'add' ? '#67C23A' : '#E6A23C', fontWeight: 'bold' }">
                     {{ scope.row.action === 'add' ? '+' : '-' }}{{ scope.row.numSessions }}
                 </span>
+            </template>
+        </el-table-column>
+        <el-table-column v-if="isSuperAdmin" align="left" label="单价" width="90">
+            <template #default="scope">{{ formatMoney(scope.row.unitPrice) }}</template>
+        </el-table-column>
+        <el-table-column v-if="isSuperAdmin" align="left" label="金额" width="110">
+            <template #default="scope">{{ formatMoney(scope.row.amount) }}</template>
+        </el-table-column>
+        <el-table-column v-if="isSuperAdmin" align="left" label="计费" width="90">
+            <template #default="scope">
+                <el-tag :type="scope.row.chargeable ? 'success' : 'info'">
+                    {{ scope.row.chargeable ? '计费' : '不计费' }}
+                </el-tag>
             </template>
         </el-table-column>
         <el-table-column align="left" label="操作原因" prop="reason" min-width="200" show-overflow-tooltip />
@@ -124,7 +161,8 @@ export default {
 import {
   deleteEduClassSession,
   getEduClassSessionList,
-  getStudentsWithLessThanFiveSessions
+  getStudentsWithLessThanFiveSessions,
+  getMonthlyChargeSummary
 } from '@/api/eduClassSession'
 import { getEduCourseList } from '@/api/eduCourse'
 import { getUserList } from '@/api/user'
@@ -132,13 +170,51 @@ import { getUserList } from '@/api/user'
 // 全量引入格式化工具 请按需保留
 import { formatDate } from '@/utils/format'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/pinia/modules/user'
+
+// ===== 日期/时间两行显示（YYYY-MM-DD / HH:mm:ss） =====
+const normalizeDateTime = (val) => {
+  if (!val) return ''
+  const date = new Date(val)
+  if (!Number.isNaN(date.getTime())) {
+    return formatDate(date)
+  }
+  let s = String(val).replace('T', ' ').split('.')[0].trim()
+  const parts = s.split(' ')
+  if (parts.length === 1) return parts[0]
+  let time = parts[1]
+  const tparts = time.split(':')
+  if (tparts.length === 2) {
+    time = `${tparts[0].padStart(2, '0')}:${tparts[1].padStart(2, '0')}:00`
+  } else if (tparts.length === 3) {
+    time = `${tparts[0].padStart(2, '0')}:${tparts[1].padStart(2, '0')}:${tparts[2].padStart(2, '0')}`
+  }
+  return `${parts[0]} ${time}`.trim()
+}
+
+const getDatePart = (val) => {
+  const s = normalizeDateTime(val)
+  return s.split(' ')[0] || '-'
+}
+
+const getTimePart = (val) => {
+  const s = normalizeDateTime(val)
+  return s.split(' ')[1] || ''
+}
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const isSuperAdmin = computed(() => {
+  const roleId = userStore.userInfo?.authority?.authorityId || userStore.userInfo?.authorityId || userStore.userInfo?.authority_id
+  return roleId === 888
+})
+const formatMoney = (val) => {
+  const num = Number(val || 0)
+  return num.toFixed(2)
+}
 const canViewLowSessions = computed(() => {
   const roleId = userStore.userInfo?.authority?.authorityId || userStore.userInfo?.authorityId
   return roleId !== 9002 // 学员不显示
@@ -154,6 +230,13 @@ const teacherList = ref([])
 const courseList = ref([])
 const lowSessionsVisible = ref(false)
 const lowSessions = ref([])
+const now = new Date()
+const summaryMonth = ref(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
+const monthlySummary = ref({
+  chargeableSessions: 0,
+  nonChargeableSessions: 0,
+  chargeableAmount: 0
+})
 
 // 重置
 const onReset = () => {
@@ -222,6 +305,20 @@ const getTableData = async() => {
   }
 }
 
+const loadMonthlySummary = async () => {
+  if (!isSuperAdmin.value) return
+  const res = await getMonthlyChargeSummary({ month: summaryMonth.value })
+  if (res.code === 0) {
+    monthlySummary.value = res.data.summary || {
+      chargeableSessions: 0,
+      nonChargeableSessions: 0,
+      chargeableAmount: 0
+    }
+  }
+}
+
+watch(summaryMonth, () => loadMonthlySummary())
+
 // 初始化：检查 URL 参数
 onMounted(() => {
   if (route.query.enrollmentId) {
@@ -229,6 +326,7 @@ onMounted(() => {
   }
   setOptions()
   getTableData()
+  loadMonthlySummary()
 })
 
 // ============== 表格控制部分结束 ===============
@@ -286,4 +384,18 @@ const openLowSessions = async () => {
 </script>
 
 <style>
+.dt-cell {
+  line-height: 1.2;
+}
+
+.dt-date,
+.dt-time {
+  white-space: nowrap; /* 防止被挤成“2026-02-05 1 / 1:44:00”这种断行 */
+}
+
+.dt-time {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.75;
+}
 </style>

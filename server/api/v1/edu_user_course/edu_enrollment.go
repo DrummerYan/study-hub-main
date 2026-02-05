@@ -1,6 +1,8 @@
 package edu_user_course
 
 import (
+	"strings"
+
 	"github.com/KeSilent/study-hub/server/global"
 	"github.com/KeSilent/study-hub/server/model/common/request"
 	"github.com/KeSilent/study-hub/server/model/common/response"
@@ -32,6 +34,13 @@ func (eduEnrollmentApi *EduEnrollmentApi) CreateEduEnrollment(c *gin.Context) {
 	if err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
+	}
+	if !utils.IsSuperAdmin(c) {
+		eduEnrollment.PricePerSession = 0
+		eduEnrollment.DiscountAmount = 0
+		eduEnrollment.TotalAmount = 0
+		eduEnrollment.PaidAmount = 0
+		eduEnrollment.BalanceAmount = 0
 	}
 	if err := eduEnrollmentService.CreateEduEnrollment(&eduEnrollment); err != nil {
 		global.GVA_LOG.Error("创建失败!", zap.Error(err))
@@ -105,6 +114,17 @@ func (eduEnrollmentApi *EduEnrollmentApi) UpdateEduEnrollment(c *gin.Context) {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
+	if !utils.IsSuperAdmin(c) {
+		// 非超管不允许修改财务字段，保持原值
+		existing, err := eduEnrollmentService.GetEduEnrollment(eduEnrollment.ID)
+		if err == nil {
+			eduEnrollment.PricePerSession = existing.PricePerSession
+			eduEnrollment.DiscountAmount = existing.DiscountAmount
+			eduEnrollment.TotalAmount = existing.TotalAmount
+			eduEnrollment.PaidAmount = existing.PaidAmount
+			eduEnrollment.BalanceAmount = existing.BalanceAmount
+		}
+	}
 	if err := eduEnrollmentService.UpdateEduEnrollment(eduEnrollment); err != nil {
 		global.GVA_LOG.Error("更新失败!", zap.Error(err))
 		response.FailWithMessage("更新失败", c)
@@ -133,6 +153,13 @@ func (eduEnrollmentApi *EduEnrollmentApi) FindEduEnrollment(c *gin.Context) {
 		global.GVA_LOG.Error("查询失败!", zap.Error(err))
 		response.FailWithMessage("查询失败", c)
 	} else {
+		if !utils.IsSuperAdmin(c) {
+			reeduEnrollment.PricePerSession = 0
+			reeduEnrollment.DiscountAmount = 0
+			reeduEnrollment.TotalAmount = 0
+			reeduEnrollment.PaidAmount = 0
+			reeduEnrollment.BalanceAmount = 0
+		}
 		response.OkWithData(gin.H{"reeduEnrollment": reeduEnrollment}, c)
 	}
 }
@@ -157,6 +184,15 @@ func (eduEnrollmentApi *EduEnrollmentApi) GetEduEnrollmentList(c *gin.Context) {
 		global.GVA_LOG.Error("获取失败!", zap.Error(err))
 		response.FailWithMessage("获取失败", c)
 	} else {
+		if !utils.IsSuperAdmin(c) {
+			for i := range list {
+				list[i].PricePerSession = 0
+				list[i].DiscountAmount = 0
+				list[i].TotalAmount = 0
+				list[i].PaidAmount = 0
+				list[i].BalanceAmount = 0
+			}
+		}
 		response.OkWithDetailed(response.PageResult{
 			List:     list,
 			Total:    total,
@@ -209,6 +245,7 @@ func (eduEnrollmentApi *EduEnrollmentApi) ConsumptionClass(c *gin.Context) {
 			}
 		}
 	}
+	chargeable := resolveChargeable(eduEnrollment.Reason, eduEnrollment.Chargeable)
 	if err := eduEnrollmentService.ConsumeSession(
 		eduEnrollment.UserId,
 		eduEnrollment.CourseId,
@@ -217,6 +254,7 @@ func (eduEnrollmentApi *EduEnrollmentApi) ConsumptionClass(c *gin.Context) {
 		eduEnrollment.UseDate,
 		eduEnrollment.TeacherId,
 		eduEnrollment.TeacherName,
+		chargeable,
 	); err != nil {
 		global.GVA_LOG.Error("消耗失败!", zap.Error(err))
 		response.FailWithMessage("消耗失败", c)
@@ -262,4 +300,22 @@ func (eduEnrollmentApi *EduEnrollmentApi) AddSession(c *gin.Context) {
 	} else {
 		response.OkWithMessage("增加课时成功", c)
 	}
+}
+
+func resolveChargeable(reason string, override *bool) bool {
+	if override != nil {
+		return *override
+	}
+	for _, keyword := range []string{"试听", "赠课", "补课"} {
+		if strings.Contains(reason, keyword) {
+			return false
+		}
+	}
+	for _, keyword := range []string{"正常", "请假"} {
+		if strings.Contains(reason, keyword) {
+			return true
+		}
+	}
+	// 自定义或未知原因默认不计费
+	return false
 }

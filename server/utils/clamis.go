@@ -72,3 +72,8 @@ func GetUserInfo(c *gin.Context) *systemReq.CustomClaims {
 		return waitUse
 	}
 }
+
+// IsSuperAdmin 判断是否为超级管理员
+func IsSuperAdmin(c *gin.Context) bool {
+	return GetUserAuthorityId(c) == 888
+}

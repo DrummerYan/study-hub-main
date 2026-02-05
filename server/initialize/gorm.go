@@ -56,6 +56,7 @@ func RegisterTables() {
 		edu_organization.EduCourse{},
 		edu_organization.EduOrganization{},
 		edu_user_course.EduEnrollment{},
+		edu_user_course.EduPayment{},
 	)
 	if err != nil {
 		global.GVA_LOG.Error("register table failed", zap.Error(err))

@@ -54,6 +54,21 @@
                 </el-tag>
             </template>
         </el-table-column>
+        <el-table-column v-if="isSuperAdmin" align="left" label="课时单价" width="110">
+            <template #default="scope">{{ formatMoney(scope.row.pricePerSession) }}</template>
+        </el-table-column>
+        <el-table-column v-if="isSuperAdmin" align="left" label="优惠" width="90">
+            <template #default="scope">{{ formatMoney(scope.row.discountAmount) }}</template>
+        </el-table-column>
+        <el-table-column v-if="isSuperAdmin" align="left" label="应收总额" width="120">
+            <template #default="scope">{{ formatMoney(scope.row.totalAmount) }}</template>
+        </el-table-column>
+        <el-table-column v-if="isSuperAdmin" align="left" label="已收" width="90">
+            <template #default="scope">{{ formatMoney(scope.row.paidAmount) }}</template>
+        </el-table-column>
+        <el-table-column v-if="isSuperAdmin" align="left" label="应收余额" width="120">
+            <template #default="scope">{{ formatMoney(scope.row.balanceAmount) }}</template>
+        </el-table-column>
         <el-table-column align="left" label="报名日期" width="120">
             <template #default="scope">{{ formatDate(scope.row.CreatedAt) }}</template>
         </el-table-column>
@@ -62,6 +77,7 @@
             <el-button type="warning" link icon="remove" @click="openConsumeDialog(scope.row)">消课</el-button>
             <el-button type="success" link icon="plus" @click="openAddDialog(scope.row)">加课</el-button>
             <el-button type="info" link icon="tickets" @click="viewHistory(scope.row)">历史</el-button>
+            <el-button v-if="isSuperAdmin" type="info" link icon="wallet" @click="openPaymentDialog(scope.row)">收款记录</el-button>
             <el-button type="primary" link icon="edit" @click="updateEduEnrollmentFunc(scope.row)">编辑</el-button>
             <el-button type="danger" link icon="delete" @click="deleteRow(scope.row)">删除</el-button>
             </template>
@@ -108,6 +124,23 @@
           <el-input-number v-model="formData.remainingSessions" :min="0" :max="formData.totalSessions || 1000" placeholder="剩余课时（默认等于总课时）" style="width: 100%" />
           <div style="color: #999; font-size: 12px; margin-top: 4px;">提示：新建时默认等于总课时</div>
         </el-form-item>
+        <template v-if="isSuperAdmin">
+          <el-form-item label="课时单价:" prop="pricePerSession">
+            <el-input-number v-model="formData.pricePerSession" :min="0" :precision="2" :step="1" placeholder="单节课价格" style="width: 100%" @change="recalcEnrollmentAmounts" />
+          </el-form-item>
+          <el-form-item label="优惠金额:" prop="discountAmount">
+            <el-input-number v-model="formData.discountAmount" :min="0" :precision="2" :step="1" placeholder="优惠金额" style="width: 100%" @change="recalcEnrollmentAmounts" />
+          </el-form-item>
+          <el-form-item label="应收总额:">
+            <el-input-number v-model="formData.totalAmount" :precision="2" :controls="false" :disabled="true" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="已收金额:">
+            <el-input-number v-model="formData.paidAmount" :precision="2" :controls="false" :disabled="true" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="应收余额:">
+            <el-input-number v-model="formData.balanceAmount" :precision="2" :controls="false" :disabled="true" style="width: 100%" />
+          </el-form-item>
+        </template>
       </el-form>
       <template #footer>
         <div class="dialog-footer">
@@ -142,6 +175,17 @@
         <el-form-item label="消课数量:" prop="sessionsToConsume">
           <el-input-number v-model="consumeForm.sessionsToConsume" :min="1" :max="consumeForm.remainingSessions" :step="1" />
         </el-form-item>
+        <template v-if="isSuperAdmin">
+          <el-form-item label="课时单价:">
+            <el-input-number v-model="consumeForm.unitPrice" :precision="2" :controls="false" :disabled="true" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="是否计费:">
+            <el-switch v-model="consumeForm.chargeable" />
+          </el-form-item>
+          <el-form-item label="本次金额:">
+            <el-input-number v-model="consumeForm.amount" :precision="2" :controls="false" :disabled="true" style="width: 100%" />
+          </el-form-item>
+        </template>
         <el-form-item label="上课时间:" prop="useDate">
           <el-date-picker v-model="consumeForm.useDate" type="datetime" placeholder="选择时间" value-format="YYYY-MM-DD HH:mm" style="width: 100%" />
         </el-form-item>
@@ -215,6 +259,53 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 收款记录弹窗（仅超管） -->
+    <el-dialog v-if="isSuperAdmin" v-model="paymentDialogVisible" :before-close="closePaymentDialog" title="收款记录" width="700px">
+      <el-form :model="paymentForm" label-position="right" ref="paymentFormRef" :rules="paymentRules" label-width="90px">
+        <el-row :gutter="12">
+          <el-col :span="8">
+            <el-form-item label="收款金额" prop="amount">
+              <el-input-number v-model="paymentForm.amount" :min="0.01" :precision="2" :step="1" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="收款时间" prop="payTime">
+              <el-date-picker v-model="paymentForm.payTime" type="datetime" value-format="YYYY-MM-DD HH:mm" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="备注">
+              <el-input v-model="paymentForm.remark" placeholder="可选" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <div style="text-align: right; margin-bottom: 12px;">
+          <el-button type="primary" @click="confirmPayment">记一笔收款</el-button>
+        </div>
+      </el-form>
+      <el-table :data="paymentList" style="width: 100%">
+        <el-table-column label="收款时间" min-width="160">
+          <template #default="scope">{{ formatDateTime(scope.row.payTime) }}</template>
+        </el-table-column>
+        <el-table-column label="金额" prop="amount" width="120">
+          <template #default="scope">{{ formatMoney(scope.row.amount) }}</template>
+        </el-table-column>
+        <el-table-column label="操作人" prop="operatorName" width="120" />
+        <el-table-column label="备注" prop="remark" />
+      </el-table>
+      <div class="gva-pagination">
+        <el-pagination
+          layout="total, sizes, prev, pager, next, jumper"
+          :current-page="paymentPage"
+          :page-size="paymentPageSize"
+          :page-sizes="[10, 30, 50, 100]"
+          :total="paymentTotal"
+          @current-change="handlePaymentPageChange"
+          @size-change="handlePaymentSizeChange"
+        />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -235,22 +326,33 @@ import {
   consumeSession,
   addSession
 } from '@/api/eduEnrollment'
+import { createEduPayment, getEduPaymentList } from '@/api/eduPayment'
 import { getEduCourseList } from '@/api/eduCourse'
 import { getUserList } from '@/api/user'
 
 // 全量引入格式化工具 请按需保留
 import { getDictFunc, formatDate, formatBoolean, filterDict } from '@/utils/format'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/pinia/modules/user'
 
 const router = useRouter()
 const userStore = useUserStore()
+const isSuperAdmin = computed(() => {
+  const roleId = userStore.userInfo?.authority?.authorityId || userStore.userInfo?.authorityId || userStore.userInfo?.authority_id
+  return roleId === 888
+})
+
+const formatMoney = (val) => {
+  const num = Number(val || 0)
+  return num.toFixed(2)
+}
 
 // 辅助函数：格式化日期时间为 YYYY-MM-DD HH:mm
 const formatDateTime = (date) => {
-  const d = new Date(date)
+  const value = typeof date === 'string' ? date.replace(' ', 'T') : date
+  const d = new Date(value)
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
@@ -265,6 +367,11 @@ const formData = ref({
         courseId: 0,
         totalSessions: 0,
         remainingSessions: 0,
+        pricePerSession: 0,
+        discountAmount: 0,
+        totalAmount: 0,
+        paidAmount: 0,
+        balanceAmount: 0
         })
 
 // 验证规则
@@ -278,10 +385,32 @@ const rule = reactive({
   remainingSessions: [
     { required: true, message: '请输入剩余课时数', trigger: 'blur' },
     { type: 'number', min: 0, message: '剩余课时数不能为负数', trigger: 'blur' }
+  ],
+  pricePerSession: [
+    { type: 'number', min: 0, message: '课时单价不能为负数', trigger: 'blur' }
+  ],
+  discountAmount: [
+    { type: 'number', min: 0, message: '优惠金额不能为负数', trigger: 'blur' }
   ]
 })
 
 const elFormRef = ref()
+
+const recalcEnrollmentAmounts = () => {
+  const totalSessions = Number(formData.value.totalSessions || 0)
+  const price = Number(formData.value.pricePerSession || 0)
+  const discount = Number(formData.value.discountAmount || 0)
+  let total = totalSessions * price - discount
+  if (total < 0) total = 0
+  formData.value.totalAmount = Number(total.toFixed(2))
+  const paid = Number(formData.value.paidAmount || 0)
+  formData.value.balanceAmount = Number((formData.value.totalAmount - paid).toFixed(2))
+}
+
+watch(
+  () => [formData.value.totalSessions, formData.value.pricePerSession, formData.value.discountAmount, formData.value.paidAmount],
+  () => recalcEnrollmentAmounts()
+)
 
 
 // =========== 表格控制部分 ===========
@@ -468,6 +597,7 @@ const updateEduEnrollmentFunc = async(row) => {
     type.value = 'update'
     if (res.code === 0) {
         formData.value = res.data.reeduEnrollment
+        recalcEnrollmentAmounts()
         dialogFormVisible.value = true
     }
 }
@@ -500,7 +630,13 @@ const openDialog = () => {
         courseId: 0,
         totalSessions: 10,  // 默认10课时
         remainingSessions: 10,  // 默认等于总课时
+        pricePerSession: 0,
+        discountAmount: 0,
+        totalAmount: 0,
+        paidAmount: 0,
+        balanceAmount: 0
     }
+    recalcEnrollmentAmounts()
     dialogFormVisible.value = true
 }
 
@@ -509,6 +645,7 @@ const onTotalSessionsChange = (val) => {
   if (type.value === 'create') {
     formData.value.remainingSessions = val || 0
   }
+  recalcEnrollmentAmounts()
 }
 
 // 关闭弹窗
@@ -519,6 +656,11 @@ const closeDialog = () => {
         courseId: 0,
         totalSessions: 0,
         remainingSessions: 0,
+        pricePerSession: 0,
+        discountAmount: 0,
+        totalAmount: 0,
+        paidAmount: 0,
+        balanceAmount: 0
         }
 }
 // 弹窗确定
@@ -560,6 +702,9 @@ const consumeForm = ref({
   teacherName: '',
   remainingSessions: 0,
   sessionsToConsume: 1,
+  unitPrice: 0,
+  chargeable: true,
+  amount: 0,
   useDate: formatDateTime(new Date()),
   reasonType: '',  // 原因类型（下拉选择）
   customReason: ''  // 自定义原因（仅当reasonType为"自定义"时使用）
@@ -581,13 +726,36 @@ const consumeRules = reactive({
   ]
 })
 
+const isNonChargeableReason = (reasonType) => {
+  if (!reasonType) return false
+  if (reasonType === '自定义') return true
+  return ['试听', '赠课', '补课'].some((key) => reasonType.includes(key))
+}
+
+const recalcConsumeAmount = () => {
+  const sessions = Number(consumeForm.value.sessionsToConsume || 0)
+  const unitPrice = Number(consumeForm.value.unitPrice || 0)
+  if (!consumeForm.value.chargeable) {
+    consumeForm.value.amount = 0
+    return
+  }
+  consumeForm.value.amount = Number((sessions * unitPrice).toFixed(2))
+}
+
 // 消课原因类型改变时的处理
 const onConsumeReasonChange = (value) => {
   // 如果不是自定义，清空自定义原因
   if (value !== '自定义') {
     consumeForm.value.customReason = ''
   }
+  consumeForm.value.chargeable = !isNonChargeableReason(value)
+  recalcConsumeAmount()
 }
+
+watch(
+  () => [consumeForm.value.sessionsToConsume, consumeForm.value.unitPrice, consumeForm.value.chargeable],
+  () => recalcConsumeAmount()
+)
 
 // 打开消课弹窗
 const openConsumeDialog = (row) => {
@@ -600,10 +768,14 @@ const openConsumeDialog = (row) => {
     teacherName: userStore.userInfo?.nickName || '',
     remainingSessions: row.remainingSessions || 0,
     sessionsToConsume: 1,
+    unitPrice: row.pricePerSession || 0,
+    chargeable: true,
+    amount: 0,
     useDate: formatDateTime(new Date()),
     reasonType: '',
     customReason: ''
   }
+  recalcConsumeAmount()
   consumeDialogVisible.value = true
 }
 
@@ -631,7 +803,8 @@ const confirmConsume = async () => {
       useDate: consumeForm.value.useDate,
       reason: finalReason,
       teacherId: consumeForm.value.teacherId || 0,
-      teacherName
+      teacherName,
+      chargeable: consumeForm.value.chargeable
     }
     
     const res = await consumeSession(params)
@@ -752,6 +925,94 @@ const viewHistory = (row) => {
     name: 'eduClassSession',
     query: { enrollmentId: row.ID }
   })
+}
+
+// ============== 收款记录 ==============
+const paymentDialogVisible = ref(false)
+const paymentFormRef = ref()
+const paymentForm = ref({
+  amount: 0,
+  payTime: formatDateTime(new Date()),
+  remark: ''
+})
+const paymentRules = reactive({
+  amount: [
+    { required: true, message: '请输入收款金额', trigger: 'blur' },
+    { type: 'number', min: 0.01, message: '收款金额必须大于0', trigger: 'blur' }
+  ],
+  payTime: [
+    { required: true, message: '请选择收款时间', trigger: 'change' }
+  ]
+})
+const paymentList = ref([])
+const paymentTotal = ref(0)
+const paymentPage = ref(1)
+const paymentPageSize = ref(10)
+const paymentTarget = ref(null)
+
+const openPaymentDialog = (row) => {
+  paymentTarget.value = row
+  paymentPage.value = 1
+  paymentPageSize.value = 10
+  paymentForm.value = {
+    amount: 0,
+    payTime: formatDateTime(new Date()),
+    remark: ''
+  }
+  paymentDialogVisible.value = true
+  loadPaymentList()
+}
+
+const closePaymentDialog = () => {
+  paymentDialogVisible.value = false
+  paymentList.value = []
+  paymentTarget.value = null
+}
+
+const loadPaymentList = async () => {
+  if (!paymentTarget.value?.ID) return
+  const res = await getEduPaymentList({
+    enrollmentId: paymentTarget.value.ID,
+    page: paymentPage.value,
+    pageSize: paymentPageSize.value
+  })
+  if (res.code === 0) {
+    paymentList.value = res.data.list || []
+    paymentTotal.value = res.data.total || 0
+  }
+}
+
+const confirmPayment = async () => {
+  paymentFormRef.value?.validate(async (valid) => {
+    if (!valid || !paymentTarget.value?.ID) return
+    const res = await createEduPayment({
+      enrollmentId: paymentTarget.value.ID,
+      amount: paymentForm.value.amount,
+      payTime: paymentForm.value.payTime,
+      remark: paymentForm.value.remark
+    })
+    if (res.code === 0) {
+      ElMessage({
+        type: 'success',
+        message: '收款记录已保存'
+      })
+      paymentForm.value.amount = 0
+      paymentForm.value.remark = ''
+      paymentForm.value.payTime = formatDateTime(new Date())
+      loadPaymentList()
+      getTableData()
+    }
+  })
+}
+
+const handlePaymentPageChange = (val) => {
+  paymentPage.value = val
+  loadPaymentList()
+}
+
+const handlePaymentSizeChange = (val) => {
+  paymentPageSize.value = val
+  loadPaymentList()
 }
 </script>
 

@@ -137,6 +137,11 @@ func (eduClassSessionApi *EduClassSessionApi) FindEduClassSession(c *gin.Context
 		global.GVA_LOG.Error("查询失败!", zap.Error(err))
 		response.FailWithMessage("查询失败", c)
 	} else {
+		if !utils.IsSuperAdmin(c) {
+			reeduClassSession.UnitPrice = 0
+			reeduClassSession.Amount = 0
+			reeduClassSession.Chargeable = false
+		}
 		response.OkWithData(gin.H{"reeduClassSession": reeduClassSession}, c)
 	}
 }
@@ -161,6 +166,13 @@ func (eduClassSessionApi *EduClassSessionApi) GetEduClassSessionList(c *gin.Cont
 		global.GVA_LOG.Error("获取失败!", zap.Error(err))
 		response.FailWithMessage("获取失败", c)
 	} else {
+		if !utils.IsSuperAdmin(c) {
+			for i := range list {
+				list[i].UnitPrice = 0
+				list[i].Amount = 0
+				list[i].Chargeable = false
+			}
+		}
 		response.OkWithDetailed(response.PageResult{
 			List:     list,
 			Total:    total,
@@ -188,6 +200,13 @@ func (eduClassSessionApi *EduClassSessionApi) GetEduClassSessionListByUser(c *gi
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取学生课时记录失败"})
 		return
+	}
+	if !utils.IsSuperAdmin(c) {
+		for i := range classSessions {
+			classSessions[i].UnitPrice = 0
+			classSessions[i].Amount = 0
+			classSessions[i].Chargeable = false
+		}
 	}
 
 	response.OkWithDetailed(response.PageResult{
@@ -219,4 +238,28 @@ func (eduClassSessionApi *EduClassSessionApi) GetStudentsWithLessThanFiveSession
 	response.OkWithDetailed(response.PageResult{
 		List: students,
 	}, "获取成功", c)
+}
+
+// GetMonthlyChargeSummary 获取月度计费汇总（仅超管）
+// @Tags EduClassSession
+// @Summary 获取月度计费汇总
+// @Security ApiKeyAuth
+// @accept application/json
+// @Produce application/json
+// @Param month query string false "月份（YYYY-MM）"
+// @Success 200 {string} string "{"success":true,"data":{},"msg":"获取成功"}"
+// @Router /eduClassSession/getMonthlyChargeSummary [get]
+func (eduClassSessionApi *EduClassSessionApi) GetMonthlyChargeSummary(c *gin.Context) {
+	if !utils.IsSuperAdmin(c) {
+		response.FailWithMessage("权限不足", c)
+		return
+	}
+	month := c.Query("month")
+	summary, err := eduClassSessionService.GetMonthlyChargeSummary(month)
+	if err != nil {
+		global.GVA_LOG.Error("获取失败!", zap.Error(err))
+		response.FailWithMessage("获取失败", c)
+		return
+	}
+	response.OkWithData(gin.H{"summary": summary}, c)
 }

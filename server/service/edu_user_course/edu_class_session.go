@@ -6,11 +6,12 @@
 package edu_user_course
 
 import (
+	"time"
+
 	"github.com/KeSilent/study-hub/server/global"
 	"github.com/KeSilent/study-hub/server/model/common/request"
 	"github.com/KeSilent/study-hub/server/model/edu_user_course"
 	edu_user_courseReq "github.com/KeSilent/study-hub/server/model/edu_user_course/request"
-
 	studentWithRemainingSessionsRes "github.com/KeSilent/study-hub/server/model/edu_user_course/response"
 )
 
@@ -160,4 +161,44 @@ func (eduClassSessionService *EduClassSessionService) GetStudentsWithLessThanFiv
 	}
 
 	return students, nil
+}
+
+// GetMonthlyChargeSummary 获取指定月份计费汇总
+func (eduClassSessionService *EduClassSessionService) GetMonthlyChargeSummary(month string) (studentWithRemainingSessionsRes.MonthlyChargeSummary, error) {
+	summary := studentWithRemainingSessionsRes.MonthlyChargeSummary{
+		Month: month,
+	}
+	if month == "" {
+		month = time.Now().Format("2006-01")
+		summary.Month = month
+	}
+	start, err := time.ParseInLocation("2006-01", month, time.Local)
+	if err != nil {
+		return summary, err
+	}
+	end := start.AddDate(0, 1, 0)
+
+	type agg struct {
+		ChargeableSessions    int64
+		ChargeableAmount      float64
+		NonChargeableSessions int64
+	}
+	var result agg
+
+	err = global.GVA_DB.Model(&edu_user_course.EduClassSession{}).
+		Where("action = ?", "subtract").
+		Where("use_date >= ? AND use_date < ?", start, end).
+		Select(`
+			COALESCE(SUM(CASE WHEN chargeable = 1 OR chargeable IS NULL THEN num_sessions ELSE 0 END), 0) AS chargeable_sessions,
+			COALESCE(SUM(CASE WHEN chargeable = 1 OR chargeable IS NULL THEN amount ELSE 0 END), 0) AS chargeable_amount,
+			COALESCE(SUM(CASE WHEN chargeable = 0 THEN num_sessions ELSE 0 END), 0) AS non_chargeable_sessions
+		`).Scan(&result).Error
+	if err != nil {
+		return summary, err
+	}
+
+	summary.ChargeableSessions = result.ChargeableSessions
+	summary.ChargeableAmount = result.ChargeableAmount
+	summary.NonChargeableSessions = result.NonChargeableSessions
+	return summary, nil
 }

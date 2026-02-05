@@ -18,6 +18,11 @@ type EduEnrollment struct {
 	CourseId          *int                       `json:"courseId" form:"courseId" gorm:"column:course_id;comment:课程ID;size:10;"`
 	TotalSessions     *int                       `json:"totalSessions" form:"totalSessions" gorm:"column:total_sessions;comment:总课时数;size:10;"`
 	RemainingSessions *int                       `json:"remainingSessions" form:"remainingSessions" gorm:"column:remaining_sessions;comment:剩余课时数;size:10;"`
+	PricePerSession   float64                    `json:"pricePerSession" form:"pricePerSession" gorm:"column:price_per_session;type:decimal(10,2);comment:课时单价;default:0;"`
+	DiscountAmount    float64                    `json:"discountAmount" form:"discountAmount" gorm:"column:discount_amount;type:decimal(10,2);comment:优惠金额;default:0;"`
+	TotalAmount       float64                    `json:"totalAmount" form:"totalAmount" gorm:"column:total_amount;type:decimal(10,2);comment:应收总额;default:0;"`
+	PaidAmount        float64                    `json:"paidAmount" form:"paidAmount" gorm:"column:paid_amount;type:decimal(10,2);comment:已收金额;default:0;"`
+	BalanceAmount     float64                    `json:"balanceAmount" form:"balanceAmount" gorm:"column:balance_amount;type:decimal(10,2);comment:应收余额;default:0;"`
 	EduCourse         edu_organization.EduCourse `json:"eduCourse" gorm:"foreignKey:CourseId"`
 	UserName          string                     `json:"userName" gorm:"-"`  // 用户姓名（从 sys_users 表联查）
 	UserPhone         string                     `json:"userPhone" gorm:"-"` // 用户手机号（从 sys_users 表联查）
@@ -37,6 +42,7 @@ type ConsumptionClassResp struct {
 	UseDate           string `json:"useDate"`           // 上课时间（YYYY-MM-DD 或 YYYY-MM-DD HH:mm）
 	TeacherId         int    `json:"teacherId"`         // 教师ID（可选）
 	TeacherName       string `json:"teacherName"`       // 教师姓名（可选）
+	Chargeable        *bool  `json:"chargeable"`        // 是否计费（可选）
 }
 
 // AddSessionReq 增加课时请求参数

@@ -7,6 +7,7 @@ package edu_user_course
 
 import (
 	"errors"
+	"math"
 	"strings"
 	"time"
 
@@ -24,6 +25,8 @@ var eduClassSessionService EduClassSessionService
 // CreateEduEnrollment 创建EduEnrollment记录
 // Author [piexlmax](https://github.com/piexlmax)
 func (eduEnrollmentService *EduEnrollmentService) CreateEduEnrollment(eduEnrollment *edu_user_course.EduEnrollment) (err error) {
+	applyEnrollmentDefaults(eduEnrollment)
+	applyEnrollmentFinance(eduEnrollment)
 	err = global.GVA_DB.Create(eduEnrollment).Error
 	return err
 }
@@ -45,6 +48,8 @@ func (eduEnrollmentService *EduEnrollmentService) DeleteEduEnrollmentByIds(ids r
 // UpdateEduEnrollment 更新EduEnrollment记录
 // Author [piexlmax](https://github.com/piexlmax)
 func (eduEnrollmentService *EduEnrollmentService) UpdateEduEnrollment(eduEnrollment edu_user_course.EduEnrollment) (err error) {
+	applyEnrollmentDefaults(&eduEnrollment)
+	applyEnrollmentFinance(&eduEnrollment)
 	err = global.GVA_DB.Save(&eduEnrollment).Error
 	return err
 }
@@ -126,7 +131,7 @@ func (eduEnrollmentService *EduEnrollmentService) GetEduEnrollmentInfoList(info 
 }
 
 // ConsumeSession 消耗课时
-func (eduEnrollmentService *EduEnrollmentService) ConsumeSession(userID, courseID, sessionsToConsume int, reason string, useData string, teacherId int, teacherName string) error {
+func (eduEnrollmentService *EduEnrollmentService) ConsumeSession(userID, courseID, sessionsToConsume int, reason string, useData string, teacherId int, teacherName string, chargeable bool) error {
 	var enrollment edu_user_course.EduEnrollment
 	db := global.GVA_DB
 
@@ -178,6 +183,11 @@ func (eduEnrollmentService *EduEnrollmentService) ConsumeSession(userID, courseI
 		return errors.New("更新报名信息失败")
 	}
 	// 记录课时操作
+	unitPrice := enrollment.PricePerSession
+	amount := 0.0
+	if chargeable {
+		amount = float64(sessionsToConsume) * unitPrice
+	}
 	classSession := edu_user_course.EduClassSession{
 		EnrollmentId: &enenrollmentId,
 		Action:       "subtract",
@@ -187,6 +197,9 @@ func (eduEnrollmentService *EduEnrollmentService) ConsumeSession(userID, courseI
 		UserName:     user.NickName,
 		TeacherId:    intPointer(teacherId),
 		TeacherName:  teacherName,
+		UnitPrice:    unitPrice,
+		Amount:       roundMoney(amount),
+		Chargeable:   chargeable,
 		UseDate:      t,
 	}
 
@@ -213,6 +226,9 @@ func (eduEnrollmentService *EduEnrollmentService) AddSession(userID, courseID, s
 	}
 
 	// 增加总课时
+	if enrollment.TotalSessions == nil {
+		enrollment.TotalSessions = new(int)
+	}
 	*enrollment.TotalSessions += sessionsToAdd
 
 	// 增加剩余课时
@@ -246,6 +262,7 @@ func (eduEnrollmentService *EduEnrollmentService) AddSession(userID, courseID, s
 	}
 
 	// 更新数据库中的报名信息
+	applyEnrollmentFinance(&enrollment)
 	result = db.Save(&enrollment)
 
 	if result.Error != nil {
@@ -263,6 +280,9 @@ func (eduEnrollmentService *EduEnrollmentService) AddSession(userID, courseID, s
 		UserName:     user.NickName,
 		TeacherId:    intPointer(teacherId),
 		TeacherName:  teacherName,
+		UnitPrice:    enrollment.PricePerSession,
+		Amount:       0,
+		Chargeable:   false,
 		UseDate:      t,
 	}
 
@@ -298,6 +318,34 @@ func intPointer(val int) *int {
 		return nil
 	}
 	return &val
+}
+
+func applyEnrollmentDefaults(eduEnrollment *edu_user_course.EduEnrollment) {
+	if eduEnrollment.TotalSessions == nil {
+		zero := 0
+		eduEnrollment.TotalSessions = &zero
+	}
+	if eduEnrollment.RemainingSessions == nil {
+		total := *eduEnrollment.TotalSessions
+		eduEnrollment.RemainingSessions = &total
+	}
+}
+
+func applyEnrollmentFinance(eduEnrollment *edu_user_course.EduEnrollment) {
+	totalSessions := 0
+	if eduEnrollment.TotalSessions != nil {
+		totalSessions = *eduEnrollment.TotalSessions
+	}
+	totalAmount := float64(totalSessions)*eduEnrollment.PricePerSession - eduEnrollment.DiscountAmount
+	if totalAmount < 0 {
+		totalAmount = 0
+	}
+	eduEnrollment.TotalAmount = roundMoney(totalAmount)
+	eduEnrollment.BalanceAmount = roundMoney(eduEnrollment.TotalAmount - eduEnrollment.PaidAmount)
+}
+
+func roundMoney(val float64) float64 {
+	return math.Round(val*100) / 100
 }
 
 // GetEduEnrollmentByUser 根据用户ID和课程ID获取报名信息
