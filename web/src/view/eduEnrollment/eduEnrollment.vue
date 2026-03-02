@@ -46,40 +46,87 @@
         <el-table-column align="left" label="学员姓名" prop="userName" width="120" />
         <el-table-column align="left" label="手机号" prop="userPhone" width="130" />
         <el-table-column align="left" label="课程名称" prop="eduCourse.courseName" width="180" />
-        <el-table-column align="left" label="总课时" prop="totalSessions" width="90" />
-        <el-table-column align="left" label="剩余课时" prop="remainingSessions" width="100">
+        <el-table-column align="left" label="总课时" width="160">
             <template #default="scope">
-                <el-tag :type="scope.row.remainingSessions <= 5 ? 'danger' : 'success'">
-                    {{ scope.row.remainingSessions }}
+                <div v-if="isSuperAdmin" class="session-vertical">
+                  <div class="session-row session-row--sub">
+                    <span class="session-label">付费课时</span>
+                    <span class="session-value">{{ getPaidSessions(scope.row) }}</span>
+                  </div>
+                  <div class="session-row session-row--sub">
+                    <span class="session-label">赠送课时</span>
+                    <span class="session-value">{{ getGiftSessions(scope.row) }}</span>
+                  </div>
+                  <div class="session-row session-row--total">
+                    <span class="session-label">总计课时</span>
+                    <span class="session-value session-value--total">{{ getTotalSessions(scope.row) }}</span>
+                  </div>
+                </div>
+                <span v-else>{{ getTotalSessions(scope.row) }}</span>
+            </template>
+        </el-table-column>
+        <el-table-column align="left" label="剩余课时" width="160">
+            <template #default="scope">
+                <div v-if="isSuperAdmin" class="session-vertical">
+                  <div class="session-row session-row--sub">
+                    <span class="session-label">付费剩余</span>
+                    <span class="session-value">{{ getRemainingPaid(scope.row) }}</span>
+                  </div>
+                  <div class="session-row session-row--sub">
+                    <span class="session-label">赠送剩余</span>
+                    <span class="session-value">{{ getRemainingGift(scope.row) }}</span>
+                  </div>
+                  <div class="session-row session-row--total">
+                    <span class="session-label">总计剩余</span>
+                    <span class="session-value session-value--remaining">{{ getRemainingTotal(scope.row) }}</span>
+                  </div>
+                </div>
+                <el-tag v-else :type="getRemainingTotal(scope.row) <= 5 ? 'danger' : 'success'">
+                    {{ getRemainingTotal(scope.row) }}
                 </el-tag>
             </template>
         </el-table-column>
         <el-table-column v-if="isSuperAdmin" align="left" label="课时单价" width="110">
             <template #default="scope">{{ formatMoney(scope.row.pricePerSession) }}</template>
         </el-table-column>
-        <el-table-column v-if="isSuperAdmin" align="left" label="优惠" width="90">
-            <template #default="scope">{{ formatMoney(scope.row.discountAmount) }}</template>
+        <el-table-column v-if="isSuperAdmin" align="left" label="付费单价" width="110">
+            <template #default="scope">{{ formatMoney(getPaidUnitPrice(scope.row)) }}</template>
+        </el-table-column>
+        <el-table-column v-if="isSuperAdmin" align="left" label="平均单价" width="110">
+            <template #default="scope">{{ formatMoney(getAvgUnitPrice(scope.row)) }}</template>
+        </el-table-column>
+        <el-table-column v-if="isSuperAdmin" align="left" label="赠课价值" width="110">
+            <template #default="scope">{{ formatMoney(getGiftValue(scope.row)) }}</template>
         </el-table-column>
         <el-table-column v-if="isSuperAdmin" align="left" label="应收总额" width="120">
             <template #default="scope">{{ formatMoney(scope.row.totalAmount) }}</template>
         </el-table-column>
-        <el-table-column v-if="isSuperAdmin" align="left" label="已收" width="90">
-            <template #default="scope">{{ formatMoney(scope.row.paidAmount) }}</template>
-        </el-table-column>
-        <el-table-column v-if="isSuperAdmin" align="left" label="应收余额" width="120">
-            <template #default="scope">{{ formatMoney(scope.row.balanceAmount) }}</template>
-        </el-table-column>
         <el-table-column align="left" label="报名日期" width="120">
-            <template #default="scope">{{ formatDate(scope.row.CreatedAt) }}</template>
-        </el-table-column>
-        <el-table-column align="left" label="操作" min-width="300" fixed="right">
             <template #default="scope">
-            <el-button type="warning" link icon="remove" @click="openConsumeDialog(scope.row)">消课</el-button>
-            <el-button type="success" link icon="plus" @click="openAddDialog(scope.row)">加课</el-button>
-            <el-button type="info" link icon="tickets" @click="viewHistory(scope.row)">历史</el-button>
-            <el-button v-if="isSuperAdmin" type="info" link icon="wallet" @click="openPaymentDialog(scope.row)">收款记录</el-button>
-            <el-button type="primary" link icon="edit" @click="updateEduEnrollmentFunc(scope.row)">编辑</el-button>
-            <el-button type="danger" link icon="delete" @click="deleteRow(scope.row)">删除</el-button>
+              <div class="dt-cell">
+                <div class="dt-date">{{ getDatePart(scope.row.CreatedAt) }}</div>
+                <div class="dt-time">{{ getTimePart(scope.row.CreatedAt) }}</div>
+              </div>
+            </template>
+        </el-table-column>
+        <el-table-column align="left" label="操作" min-width="220" fixed="right">
+            <template #default="scope">
+            <div class="action-group">
+              <el-button type="warning" link icon="remove" @click="openConsumeDialog(scope.row)">消课</el-button>
+              <el-button type="success" link icon="plus" @click="openAddDialog(scope.row)">加课</el-button>
+              <el-dropdown trigger="click">
+                <el-button type="primary" link>更多</el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item v-if="isSuperAdmin" @click="openRefundDialog(scope.row)">退费/转课</el-dropdown-item>
+                    <el-dropdown-item @click="viewHistory(scope.row)">历史</el-dropdown-item>
+                    <el-dropdown-item v-if="isSuperAdmin" @click="openPaymentDialog(scope.row)">收款记录</el-dropdown-item>
+                    <el-dropdown-item @click="updateEduEnrollmentFunc(scope.row)">编辑</el-dropdown-item>
+                    <el-dropdown-item divided class="danger-item" @click="deleteRow(scope.row)">删除</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
             </template>
         </el-table-column>
         </el-table>
@@ -117,13 +164,36 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="总课时数:"  prop="totalSessions" >
-          <el-input-number v-model="formData.totalSessions" :min="1" :max="1000" placeholder="请输入总课时数" style="width: 100%" @change="onTotalSessionsChange" />
-        </el-form-item>
-        <el-form-item label="剩余课时:" prop="remainingSessions">
-          <el-input-number v-model="formData.remainingSessions" :min="0" :max="formData.totalSessions || 1000" placeholder="剩余课时（默认等于总课时）" style="width: 100%" />
-          <div style="color: #999; font-size: 12px; margin-top: 4px;">提示：新建时默认等于总课时</div>
-        </el-form-item>
+        <template v-if="isSuperAdmin">
+          <el-form-item label="付费课时:" prop="paidSessions">
+            <el-input-number v-model="formData.paidSessions" :min="0" :max="1000" placeholder="付费课时数" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="赠送课时:" prop="giftSessions">
+            <el-input-number v-model="formData.giftSessions" :min="0" :max="1000" placeholder="赠送课时数" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="总课时数:">
+            <el-input-number v-model="formData.totalSessions" :controls="false" :disabled="true" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="剩余付费:" prop="remainingPaidSessions">
+            <el-input-number v-model="formData.remainingPaidSessions" :min="0" :max="formData.paidSessions || 1000" :disabled="type === 'create'" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="剩余赠送:" prop="remainingGiftSessions">
+            <el-input-number v-model="formData.remainingGiftSessions" :min="0" :max="formData.giftSessions || 1000" :disabled="type === 'create'" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="剩余总课时:">
+            <el-input-number v-model="formData.remainingSessions" :controls="false" :disabled="true" style="width: 100%" />
+            <div style="color: #999; font-size: 12px; margin-top: 4px;">提示：新建时默认等于付费+赠送课时</div>
+          </el-form-item>
+        </template>
+        <template v-else>
+          <el-form-item label="总课时数:"  prop="totalSessions" >
+            <el-input-number v-model="formData.totalSessions" :min="1" :max="1000" placeholder="请输入总课时数" style="width: 100%" @change="onTotalSessionsChange" />
+          </el-form-item>
+          <el-form-item label="剩余课时:" prop="remainingSessions">
+            <el-input-number v-model="formData.remainingSessions" :min="0" :max="formData.totalSessions || 1000" placeholder="剩余课时（默认等于总课时）" style="width: 100%" />
+            <div style="color: #999; font-size: 12px; margin-top: 4px;">提示：新建时默认等于总课时</div>
+          </el-form-item>
+        </template>
         <template v-if="isSuperAdmin">
           <el-form-item label="课时单价:" prop="pricePerSession">
             <el-input-number v-model="formData.pricePerSession" :min="0" :precision="2" :step="1" placeholder="单节课价格" style="width: 100%" @change="recalcEnrollmentAmounts" />
@@ -171,6 +241,11 @@
         </el-form-item>
         <el-form-item label="剩余课时:">
           <el-tag type="success" size="large">{{ consumeForm.remainingSessions }} 课时</el-tag>
+        </el-form-item>
+        <el-form-item v-if="isSuperAdmin" label="付费/赠送:">
+          <el-tag type="info" size="large">
+            付费 {{ consumeForm.remainingPaidSessions }} / 赠送 {{ consumeForm.remainingGiftSessions }}
+          </el-tag>
         </el-form-item>
         <el-form-item label="消课数量:" prop="sessionsToConsume">
           <el-input-number v-model="consumeForm.sessionsToConsume" :min="1" :max="consumeForm.remainingSessions" :step="1" />
@@ -306,6 +381,92 @@
         />
       </div>
     </el-dialog>
+
+    <!-- 退费/转课弹窗（仅超管） -->
+    <el-dialog v-if="isSuperAdmin" v-model="refundDialogVisible" :before-close="closeRefundDialog" title="退费/转课" width="560px">
+      <el-form :model="refundForm" label-width="110px">
+        <el-form-item label="学员">
+          <el-input v-model="refundForm.userName" :disabled="true" />
+        </el-form-item>
+        <el-form-item label="课程">
+          <el-input v-model="refundForm.courseName" :disabled="true" />
+        </el-form-item>
+        <el-form-item label="付费课时">
+          <el-input v-model="refundForm.paidSessions" :disabled="true" />
+        </el-form-item>
+        <el-form-item label="已消付费">
+          <el-input v-model="refundForm.consumedPaidSessions" :disabled="true" />
+        </el-form-item>
+        <el-form-item label="剩余付费">
+          <el-input v-model="refundForm.remainingPaidSessions" :disabled="true" />
+        </el-form-item>
+        <el-form-item label="赠送课时">
+          <el-input v-model="refundForm.giftSessions" :disabled="true" />
+        </el-form-item>
+        <el-form-item label="应收总额">
+          <el-input v-model="refundForm.totalAmount" :disabled="true" />
+        </el-form-item>
+        <el-form-item label="付费单价">
+          <el-input v-model="refundForm.paidUnitPrice" :disabled="true" />
+        </el-form-item>
+        <el-form-item label="操作类型">
+          <el-radio-group v-model="refundForm.action" @change="recalcRefundAmount">
+            <el-radio label="refund">退费</el-radio>
+            <el-radio label="transfer">转课</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="退/转课时">
+          <el-input-number v-model="refundForm.sessions" :min="1" :max="refundForm.remainingPaidSessions" @change="recalcRefundAmount" />
+        </el-form-item>
+        <el-form-item v-if="refundForm.action === 'transfer'" label="转入课程">
+          <el-select v-model="refundForm.targetCourseId" placeholder="选择课程" filterable clearable style="width: 100%">
+            <el-option v-for="course in courseList" :key="course.ID" :label="course.courseName" :value="course.ID" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="可退金额">
+          <el-input v-model="refundForm.refundAmount" :disabled="true" />
+        </el-form-item>
+        <el-form-item label="原因(可选)">
+          <el-input v-model="refundForm.reason" placeholder="可填写退费/转课原因" />
+        </el-form-item>
+        <el-alert type="info" :closable="false" show-icon title="规则说明">
+          <div>退费按“已消付费课时”扣费，赠课不计入可退范围。</div>
+          <div>转课仅转移付费课时，赠课不转移。</div>
+        </el-alert>
+      </el-form>
+      <el-divider content-position="left">退费记录</el-divider>
+      <el-table :data="refundList" style="width: 100%">
+        <el-table-column label="时间" min-width="160">
+          <template #default="scope">{{ formatDateTime(scope.row.refundTime || scope.row.CreatedAt) }}</template>
+        </el-table-column>
+        <el-table-column label="类型" prop="action" width="100">
+          <template #default="scope">{{ scope.row.action === 'transfer' ? '转课' : '退费' }}</template>
+        </el-table-column>
+        <el-table-column label="课时" prop="refundSessions" width="90" />
+        <el-table-column label="金额" prop="refundAmount" width="120">
+          <template #default="scope">{{ formatMoney(scope.row.refundAmount) }}</template>
+        </el-table-column>
+        <el-table-column label="原因" prop="reason" />
+        <el-table-column label="操作人" prop="operatorName" width="120" />
+      </el-table>
+      <div class="gva-pagination">
+        <el-pagination
+          layout="total, sizes, prev, pager, next, jumper"
+          :current-page="refundPage"
+          :page-size="refundPageSize"
+          :page-sizes="[10, 30, 50, 100]"
+          :total="refundTotal"
+          @current-change="handleRefundPageChange"
+          @size-change="handleRefundSizeChange"
+        />
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="closeRefundDialog">取 消</el-button>
+          <el-button type="primary" @click="confirmRefundTransfer">确 定</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -324,9 +485,11 @@ import {
   findEduEnrollment,
   getEduEnrollmentList,
   consumeSession,
-  addSession
+  addSession,
+  refundTransfer
 } from '@/api/eduEnrollment'
 import { createEduPayment, getEduPaymentList } from '@/api/eduPayment'
+import { getEduRefundList } from '@/api/eduRefund'
 import { getEduCourseList } from '@/api/eduCourse'
 import { getUserList } from '@/api/user'
 
@@ -349,6 +512,59 @@ const formatMoney = (val) => {
   return num.toFixed(2)
 }
 
+const getPaidSessions = (row) => {
+  const paid = Number(row.paidSessions || 0)
+  const gift = Number(row.giftSessions || 0)
+  if (paid === 0 && gift === 0) return Number(row.totalSessions || 0)
+  return paid
+}
+
+const getGiftSessions = (row) => {
+  const gift = Number(row.giftSessions || 0)
+  return gift
+}
+
+const getTotalSessions = (row) => {
+  const total = Number(row.totalSessions || 0)
+  return total
+}
+
+const getRemainingPaid = (row) => {
+  const paid = Number(row.remainingPaidSessions || 0)
+  const gift = Number(row.remainingGiftSessions || 0)
+  if (paid === 0 && gift === 0) return Number(row.remainingSessions || 0)
+  return paid
+}
+
+const getRemainingGift = (row) => {
+  return Number(row.remainingGiftSessions || 0)
+}
+
+const getRemainingTotal = (row) => {
+  const total = Number(row.remainingSessions || 0)
+  return total
+}
+
+const getPaidUnitPrice = (row) => {
+  const paid = getPaidSessions(row)
+  const totalAmount = Number(row.totalAmount || 0)
+  if (paid <= 0) return 0
+  return Number((totalAmount / paid).toFixed(2))
+}
+
+const getAvgUnitPrice = (row) => {
+  const totalSessions = getTotalSessions(row)
+  const totalAmount = Number(row.totalAmount || 0)
+  if (totalSessions <= 0) return 0
+  return Number((totalAmount / totalSessions).toFixed(2))
+}
+
+const getGiftValue = (row) => {
+  const gift = getGiftSessions(row)
+  const price = Number(row.pricePerSession || 0)
+  return Number((gift * price).toFixed(2))
+}
+
 // 辅助函数：格式化日期时间为 YYYY-MM-DD HH:mm
 const formatDateTime = (date) => {
   const value = typeof date === 'string' ? date.replace(' ', 'T') : date
@@ -361,12 +577,45 @@ const formatDateTime = (date) => {
   return `${year}-${month}-${day} ${hours}:${minutes}`
 }
 
+const normalizeDateTime = (val) => {
+  if (!val) return ''
+  const date = new Date(val)
+  if (!Number.isNaN(date.getTime())) {
+    return formatDate(date)
+  }
+  let s = String(val).replace('T', ' ').split('.')[0].trim()
+  const parts = s.split(' ')
+  if (parts.length === 1) return parts[0]
+  let time = parts[1]
+  const tparts = time.split(':')
+  if (tparts.length === 2) {
+    time = `${tparts[0].padStart(2, '0')}:${tparts[1].padStart(2, '0')}:00`
+  } else if (tparts.length === 3) {
+    time = `${tparts[0].padStart(2, '0')}:${tparts[1].padStart(2, '0')}:${tparts[2].padStart(2, '0')}`
+  }
+  return `${parts[0]} ${time}`.trim()
+}
+
+const getDatePart = (val) => {
+  const s = normalizeDateTime(val)
+  return s.split(' ')[0] || '-'
+}
+
+const getTimePart = (val) => {
+  const s = normalizeDateTime(val)
+  return s.split(' ')[1] || ''
+}
+
 // 自动化生成的字典（可能为空）以及字段
 const formData = ref({
         userId: 0,
         courseId: 0,
         totalSessions: 0,
         remainingSessions: 0,
+        paidSessions: 0,
+        giftSessions: 0,
+        remainingPaidSessions: 0,
+        remainingGiftSessions: 0,
         pricePerSession: 0,
         discountAmount: 0,
         totalAmount: 0,
@@ -386,6 +635,18 @@ const rule = reactive({
     { required: true, message: '请输入剩余课时数', trigger: 'blur' },
     { type: 'number', min: 0, message: '剩余课时数不能为负数', trigger: 'blur' }
   ],
+  paidSessions: [
+    { type: 'number', min: 0, message: '付费课时不能为负数', trigger: 'blur' }
+  ],
+  giftSessions: [
+    { type: 'number', min: 0, message: '赠送课时不能为负数', trigger: 'blur' }
+  ],
+  remainingPaidSessions: [
+    { type: 'number', min: 0, message: '剩余付费课时不能为负数', trigger: 'blur' }
+  ],
+  remainingGiftSessions: [
+    { type: 'number', min: 0, message: '剩余赠送课时不能为负数', trigger: 'blur' }
+  ],
   pricePerSession: [
     { type: 'number', min: 0, message: '课时单价不能为负数', trigger: 'blur' }
   ],
@@ -395,12 +656,16 @@ const rule = reactive({
 })
 
 const elFormRef = ref()
+// 行为控制标记（弹窗内部需要增还是改）
+const type = ref('')
 
 const recalcEnrollmentAmounts = () => {
   const totalSessions = Number(formData.value.totalSessions || 0)
+  const paidSessions = Number(formData.value.paidSessions || 0)
   const price = Number(formData.value.pricePerSession || 0)
   const discount = Number(formData.value.discountAmount || 0)
-  let total = totalSessions * price - discount
+  const billableSessions = isSuperAdmin.value ? paidSessions : totalSessions
+  let total = billableSessions * price - discount
   if (total < 0) total = 0
   formData.value.totalAmount = Number(total.toFixed(2))
   const paid = Number(formData.value.paidAmount || 0)
@@ -408,9 +673,55 @@ const recalcEnrollmentAmounts = () => {
 }
 
 watch(
-  () => [formData.value.totalSessions, formData.value.pricePerSession, formData.value.discountAmount, formData.value.paidAmount],
+  () => [formData.value.totalSessions, formData.value.paidSessions, formData.value.pricePerSession, formData.value.discountAmount, formData.value.paidAmount],
   () => recalcEnrollmentAmounts()
 )
+
+const recalcSessionTotals = () => {
+  if (!isSuperAdmin.value) {
+    formData.value.paidSessions = Number(formData.value.totalSessions || 0)
+    formData.value.giftSessions = 0
+    formData.value.remainingPaidSessions = Number(formData.value.remainingSessions || 0)
+    formData.value.remainingGiftSessions = 0
+    return
+  }
+  const paid = Number(formData.value.paidSessions || 0)
+  const gift = Number(formData.value.giftSessions || 0)
+  formData.value.totalSessions = paid + gift
+  if (type.value === 'create') {
+    formData.value.remainingPaidSessions = paid
+    formData.value.remainingGiftSessions = gift
+  }
+  const remainPaid = Number(formData.value.remainingPaidSessions || 0)
+  const remainGift = Number(formData.value.remainingGiftSessions || 0)
+  formData.value.remainingSessions = remainPaid + remainGift
+}
+
+watch(
+  () => [
+    formData.value.paidSessions,
+    formData.value.giftSessions,
+    formData.value.remainingPaidSessions,
+    formData.value.remainingGiftSessions,
+    formData.value.totalSessions,
+    formData.value.remainingSessions,
+    type.value
+  ],
+  () => recalcSessionTotals()
+)
+
+const normalizeEnrollmentForm = () => {
+  if (!isSuperAdmin.value) return
+  if ((Number(formData.value.paidSessions || 0) === 0) && (Number(formData.value.giftSessions || 0) === 0) && Number(formData.value.totalSessions || 0) > 0) {
+    formData.value.paidSessions = Number(formData.value.totalSessions || 0)
+    formData.value.giftSessions = 0
+  }
+  if ((Number(formData.value.remainingPaidSessions || 0) === 0) && (Number(formData.value.remainingGiftSessions || 0) === 0) && Number(formData.value.remainingSessions || 0) > 0) {
+    formData.value.remainingPaidSessions = Number(formData.value.remainingSessions || 0)
+    formData.value.remainingGiftSessions = 0
+  }
+  recalcSessionTotals()
+}
 
 
 // =========== 表格控制部分 ===========
@@ -471,8 +782,9 @@ const setOptions = async () =>{
   const userRes = await getUserList({ page: 1, pageSize: 9999 })
   if (userRes.code === 0) {
     const allUsers = userRes.data.list || []
+    const enabledUsers = allUsers.filter(user => user.enable === 1)
     // 先排除管理员/系统角色，避免出现在学员下拉中
-    const nonAdminUsers = allUsers.filter(user => {
+    const nonAdminUsers = enabledUsers.filter(user => {
       const userRoles = user.authorities || []
       const isAdminRole = userRoles.some(auth =>
         auth.authorityName?.includes('超级管理员') ||
@@ -588,15 +900,13 @@ const onDelete = async() => {
       }
     }
 
-// 行为控制标记（弹窗内部需要增还是改）
-const type = ref('')
-
 // 更新行
 const updateEduEnrollmentFunc = async(row) => {
     const res = await findEduEnrollment({ ID: row.ID })
     type.value = 'update'
     if (res.code === 0) {
         formData.value = res.data.reeduEnrollment
+        normalizeEnrollmentForm()
         recalcEnrollmentAmounts()
         dialogFormVisible.value = true
     }
@@ -630,12 +940,17 @@ const openDialog = () => {
         courseId: 0,
         totalSessions: 10,  // 默认10课时
         remainingSessions: 10,  // 默认等于总课时
+        paidSessions: 10,
+        giftSessions: 0,
+        remainingPaidSessions: 10,
+        remainingGiftSessions: 0,
         pricePerSession: 0,
         discountAmount: 0,
         totalAmount: 0,
         paidAmount: 0,
         balanceAmount: 0
     }
+    normalizeEnrollmentForm()
     recalcEnrollmentAmounts()
     dialogFormVisible.value = true
 }
@@ -656,6 +971,10 @@ const closeDialog = () => {
         courseId: 0,
         totalSessions: 0,
         remainingSessions: 0,
+        paidSessions: 0,
+        giftSessions: 0,
+        remainingPaidSessions: 0,
+        remainingGiftSessions: 0,
         pricePerSession: 0,
         discountAmount: 0,
         totalAmount: 0,
@@ -701,6 +1020,8 @@ const consumeForm = ref({
   teacherId: 0,
   teacherName: '',
   remainingSessions: 0,
+  remainingPaidSessions: 0,
+  remainingGiftSessions: 0,
   sessionsToConsume: 1,
   unitPrice: 0,
   chargeable: true,
@@ -767,6 +1088,8 @@ const openConsumeDialog = (row) => {
     teacherId: userStore.userInfo?.ID || 0,
     teacherName: userStore.userInfo?.nickName || '',
     remainingSessions: row.remainingSessions || 0,
+    remainingPaidSessions: row.remainingPaidSessions || row.remainingPaid || 0,
+    remainingGiftSessions: row.remainingGiftSessions || row.remainingGift || 0,
     sessionsToConsume: 1,
     unitPrice: row.pricePerSession || 0,
     chargeable: true,
@@ -1014,7 +1337,193 @@ const handlePaymentSizeChange = (val) => {
   paymentPageSize.value = val
   loadPaymentList()
 }
+
+// ============== 退费/转课（仅超管） ==============
+const refundDialogVisible = ref(false)
+const refundForm = ref({
+  enrollmentId: 0,
+  userName: '',
+  courseName: '',
+  paidSessions: 0,
+  remainingPaidSessions: 0,
+  consumedPaidSessions: 0,
+  giftSessions: 0,
+  totalAmount: 0,
+  paidUnitPrice: 0,
+  action: 'refund',
+  sessions: 1,
+  targetCourseId: null,
+  refundAmount: 0,
+  reason: ''
+})
+const refundList = ref([])
+const refundTotal = ref(0)
+const refundPage = ref(1)
+const refundPageSize = ref(10)
+
+const openRefundDialog = (row) => {
+  const paidSessions = Number(row.paidSessions || row.totalSessions || 0)
+  const remainingPaid = Number(row.remainingPaidSessions || row.remainingSessions || 0)
+  const consumedPaid = Math.max(paidSessions - remainingPaid, 0)
+  const totalAmount = Number(row.totalAmount || 0)
+  const unit = paidSessions > 0
+    ? Number(((totalAmount > 0 ? totalAmount : Number(row.pricePerSession || 0) * paidSessions) / paidSessions).toFixed(2))
+    : Number(row.pricePerSession || 0)
+  refundForm.value = {
+    enrollmentId: row.ID,
+    userName: row.userName || '',
+    courseName: row.eduCourse?.courseName || row.courseName || '',
+    paidSessions,
+    remainingPaidSessions: remainingPaid,
+    consumedPaidSessions: consumedPaid,
+    giftSessions: Number(row.giftSessions || 0),
+    totalAmount: totalAmount.toFixed(2),
+    paidUnitPrice: unit.toFixed(2),
+    action: 'refund',
+    sessions: remainingPaid > 0 ? remainingPaid : 1,
+    targetCourseId: null,
+    refundAmount: 0,
+    reason: ''
+  }
+  recalcRefundAmount()
+  refundDialogVisible.value = true
+  refundPage.value = 1
+  refundPageSize.value = 10
+  loadRefundList()
+}
+
+const closeRefundDialog = () => {
+  refundDialogVisible.value = false
+  refundList.value = []
+}
+
+const recalcRefundAmount = () => {
+  const sessions = Number(refundForm.value.sessions || 0)
+  const unit = Number(refundForm.value.paidUnitPrice || 0)
+  const amount = sessions * unit
+  refundForm.value.refundAmount = amount.toFixed(2)
+}
+
+const confirmRefundTransfer = async () => {
+  if (refundForm.value.remainingPaidSessions <= 0) {
+    ElMessage({ type: 'warning', message: '剩余付费课时为 0，无法操作' })
+    return
+  }
+  if (refundForm.value.sessions <= 0 || refundForm.value.sessions > refundForm.value.remainingPaidSessions) {
+    ElMessage({ type: 'warning', message: '退/转课时数不合法' })
+    return
+  }
+  if (refundForm.value.action === 'transfer' && !refundForm.value.targetCourseId) {
+    ElMessage({ type: 'warning', message: '请选择转入课程' })
+    return
+  }
+  const res = await refundTransfer({
+    enrollmentId: refundForm.value.enrollmentId,
+    action: refundForm.value.action,
+    sessions: refundForm.value.sessions,
+    targetCourseId: refundForm.value.action === 'transfer' ? refundForm.value.targetCourseId : 0,
+    reason: refundForm.value.reason
+  })
+  if (res.code === 0) {
+    ElMessage({
+      type: 'success',
+      message: refundForm.value.action === 'refund'
+        ? `退费成功，可退金额：${res.data?.refundAmount ?? refundForm.value.refundAmount}`
+        : '转课成功'
+    })
+    refundForm.value.reason = ''
+    loadRefundList()
+    getTableData()
+  } else {
+    ElMessage({ type: 'error', message: res.msg || '操作失败' })
+  }
+}
+
+const loadRefundList = async () => {
+  if (!refundForm.value.enrollmentId) return
+  const res = await getEduRefundList({
+    enrollmentId: refundForm.value.enrollmentId,
+    page: refundPage.value,
+    pageSize: refundPageSize.value
+  })
+  if (res.code === 0) {
+    refundList.value = res.data.list || []
+    refundTotal.value = res.data.total || 0
+  }
+}
+
+const handleRefundPageChange = (val) => {
+  refundPage.value = val
+  loadRefundList()
+}
+
+const handleRefundSizeChange = (val) => {
+  refundPageSize.value = val
+  loadRefundList()
+}
 </script>
 
 <style>
+.session-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+  font-size: 12px;
+}
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.session-label {
+  color: #606266;
+  min-width: 64px;
+}
+.session-value {
+  color: #303133;
+}
+.session-row--sub .session-label,
+.session-row--sub .session-value {
+  color: #9aa0a6;
+}
+.session-row--total .session-label {
+  color: #303133;
+  font-weight: 600;
+}
+.session-row--total .session-value {
+  color: #111827;
+  font-weight: 700;
+  font-size: 13px;
+}
+.session-row--total .session-value.session-value--total {
+  color: #16a34a;
+}
+.session-row--total .session-value.session-value--remaining {
+  color: #dc2626;
+}
+.dt-cell {
+  line-height: 1.2;
+}
+.dt-date,
+.dt-time {
+  white-space: nowrap;
+}
+.dt-time {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+.no-wrap {
+  white-space: nowrap;
+}
+.action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.danger-item {
+  color: #f56c6c;
+}
 </style>

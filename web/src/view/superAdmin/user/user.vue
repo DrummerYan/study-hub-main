@@ -27,6 +27,9 @@
           </div>
         </el-tab-pane>
       </el-tabs>
+      <div class="gva-btn-list" style="justify-content: flex-end;">
+        <el-switch v-model="showDisabled" inline-prompt active-text="显示停用" inactive-text="隐藏停用" />
+      </div>
       <el-table :data="filteredTableData" row-key="ID">
         <el-table-column align="left" label="头像" min-width="75">
           <template #default="scope">
@@ -268,6 +271,7 @@ const total = ref(0)
 const pageSize = ref(10)
 const tableData = ref([])
 const activeTab = ref('teacher') // 默认显示教师管理
+const showDisabled = ref(false)
 
 // 根据标签过滤表格数据
 const filteredTableData = computed(() => {
@@ -283,10 +287,14 @@ const filteredTableData = computed(() => {
     )
     return !isAdmin
   })
-  
+
+  const visibleUsers = showDisabled.value
+    ? nonAdminUsers
+    : nonAdminUsers.filter(user => user.enable === 1)
+
   if (activeTab.value === 'teacher') {
     // 教师标签：显示角色ID为9001的用户，或角色名包含"教师"
-    return nonAdminUsers.filter(user => {
+    return visibleUsers.filter(user => {
       const userRoles = user.authorities || []
       return userRoles.some(auth => 
         auth.authorityId === 9001 ||  // 精确匹配教师角色ID
@@ -296,7 +304,7 @@ const filteredTableData = computed(() => {
     })
   } else if (activeTab.value === 'student') {
     // 学员标签：显示角色ID为9002的用户，或角色名包含"学员"
-    return nonAdminUsers.filter(user => {
+    return visibleUsers.filter(user => {
       const userRoles = user.authorities || []
       return userRoles.some(auth => 
         auth.authorityId === 9002 ||  // 精确匹配学员角色ID
@@ -306,10 +314,10 @@ const filteredTableData = computed(() => {
     })
   } else if (activeTab.value === 'all') {
     // 所有用户标签：显示所有非管理员用户
-    return nonAdminUsers
+    return visibleUsers
   }
   
-  return nonAdminUsers
+  return visibleUsers
 })
 
 // 标签切换处理

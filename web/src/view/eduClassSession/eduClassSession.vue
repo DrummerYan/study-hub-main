@@ -71,6 +71,7 @@
         </div>
         <el-table
         ref="multipleTable"
+        class="class-session-table"
         style="width: 100%"
         tooltip-effect="dark"
         :data="tableData"
@@ -87,6 +88,22 @@
         <el-table-column align="left" label="学员姓名" prop="userName" width="120" />
         <el-table-column align="left" label="授课老师" prop="teacherName" width="120" />
         <el-table-column align="left" label="课程名称" prop="courseName" width="150" />
+        <el-table-column align="left" label="课时情况" width="130">
+            <template #default="scope">
+              <div class="session-cell">
+                <el-tooltip
+                  :content="`付${getEnrollmentPaidRemaining(scope.row)}/赠${getEnrollmentGiftRemaining(scope.row)}`"
+                  placement="top"
+                  :open-delay="0"
+                >
+                  <div class="session-line">
+                    <span class="session-key">剩余</span>
+                    <span class="session-value">{{ getEnrollmentRemaining(scope.row) }}</span>
+                  </div>
+                </el-tooltip>
+              </div>
+            </template>
+        </el-table-column>
         <el-table-column align="left" label="操作类型" width="100">
             <template #default="scope">
                 <el-tag :type="scope.row.action === 'add' ? 'success' : 'warning'">
@@ -94,28 +111,37 @@
                 </el-tag>
             </template>
         </el-table-column>
-        <el-table-column align="left" label="课时数量" width="100">
+        <el-table-column
+          align="center"
+          header-align="center"
+          label="课时数量"
+          width="120"
+          class-name="qty-col"
+          header-class-name="qty-col"
+        >
             <template #default="scope">
-                <span :style="{ color: scope.row.action === 'add' ? '#67C23A' : '#E6A23C', fontWeight: 'bold' }">
+                <div class="qty-cell">
+                  <span :style="{ color: scope.row.action === 'add' ? '#67C23A' : '#E6A23C', fontWeight: 'bold' }">
                     {{ scope.row.action === 'add' ? '+' : '-' }}{{ scope.row.numSessions }}
-                </span>
+                  </span>
+                </div>
             </template>
         </el-table-column>
-        <el-table-column v-if="isSuperAdmin" align="left" label="单价" width="90">
+        <el-table-column v-if="isSuperAdmin" align="center" label="单价" width="120">
             <template #default="scope">{{ formatMoney(scope.row.unitPrice) }}</template>
         </el-table-column>
-        <el-table-column v-if="isSuperAdmin" align="left" label="金额" width="110">
+        <el-table-column v-if="isSuperAdmin" align="center" label="金额" width="140">
             <template #default="scope">{{ formatMoney(scope.row.amount) }}</template>
         </el-table-column>
-        <el-table-column v-if="isSuperAdmin" align="left" label="计费" width="90">
+        <el-table-column v-if="isSuperAdmin" align="center" label="计费" width="120">
             <template #default="scope">
                 <el-tag :type="scope.row.chargeable ? 'success' : 'info'">
                     {{ scope.row.chargeable ? '计费' : '不计费' }}
                 </el-tag>
             </template>
         </el-table-column>
-        <el-table-column align="left" label="操作原因" prop="reason" min-width="200" show-overflow-tooltip />
-        <el-table-column align="left" label="记录时间" width="180">
+        <el-table-column align="left" label="操作原因" prop="reason" min-width="240" show-overflow-tooltip />
+        <el-table-column align="center" label="记录时间" width="180">
             <template #default="scope">{{ formatDate(scope.row.CreatedAt) }}</template>
         </el-table-column>
         <el-table-column align="left" label="操作" width="150" fixed="right">
@@ -202,6 +228,32 @@ const getDatePart = (val) => {
 const getTimePart = (val) => {
   const s = normalizeDateTime(val)
   return s.split(' ')[1] || ''
+}
+
+const getEnrollmentTotal = (row) => {
+  const total = row?.eduEnrollment?.totalSessions
+  return total === null || total === undefined ? '-' : total
+}
+
+const getEnrollmentRemaining = (row) => {
+  const remaining = row?.eduEnrollment?.remainingSessions
+  return remaining === null || remaining === undefined ? '-' : remaining
+}
+const getEnrollmentPaidTotal = (row) => {
+  const val = row?.eduEnrollment?.paidSessions
+  return val === null || val === undefined ? '-' : val
+}
+const getEnrollmentGiftTotal = (row) => {
+  const val = row?.eduEnrollment?.giftSessions
+  return val === null || val === undefined ? '-' : val
+}
+const getEnrollmentPaidRemaining = (row) => {
+  const val = row?.eduEnrollment?.remainingPaidSessions
+  return val === null || val === undefined ? '-' : val
+}
+const getEnrollmentGiftRemaining = (row) => {
+  const val = row?.eduEnrollment?.remainingGiftSessions
+  return val === null || val === undefined ? '-' : val
 }
 
 const route = useRoute()
@@ -384,8 +436,9 @@ const openLowSessions = async () => {
 </script>
 
 <style>
+/* 日期/时间两行显示（YYYY-MM-DD / HH:mm:ss）单元格 */
 .dt-cell {
-  line-height: 1.2;
+  line-height: 1.25;
 }
 
 .dt-date,
@@ -394,8 +447,75 @@ const openLowSessions = async () => {
 }
 
 .dt-time {
-  margin-top: 4px;
+  margin-top: 6px;
   font-size: 12px;
   opacity: 0.75;
+}
+
+.class-session-table .el-table__cell {
+  vertical-align: middle;
+  padding: 10px 0; /* 轻微增加行高，避免拥挤 */
+}
+
+/* 表头稍微松一点 */
+.class-session-table .el-table__header-wrapper th.el-table__cell {
+  padding: 12px 0;
+}
+
+/* 单元格内容左右留一点空隙（不影响对齐逻辑） */
+.class-session-table .el-table__cell .cell {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+.class-session-table .dt-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+}
+.class-session-table .session-cell {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+
+.qty-cell {
+  width: 100%;
+  text-align: center;
+}
+
+/* 强制“课时数量”这一列（表头+单元格）居中，避免被全局 .el-table .cell 样式覆盖 */
+.class-session-table .qty-col .cell {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center !important;
+}
+
+.class-session-table .qty-col .cell .qty-cell {
+  width: 100%;
+  text-align: center;
+}
+
+.session-line {
+  display: grid;
+  grid-template-columns: 32px auto;
+  align-items: center;
+  column-gap: 6px;
+  white-space: nowrap;
+}
+
+/* 让 tag/number 列不显得太拥挤 */
+.class-session-table .el-tag {
+  line-height: 20px;
+}
+.session-key {
+  color: #606266;
+  text-align: right;
+}
+.session-value {
+  color: #303133;
+  font-weight: 600;
 }
 </style>

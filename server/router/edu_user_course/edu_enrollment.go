@@ -33,5 +33,6 @@ func (s *EduEnrollmentRouter) InitEduEnrollmentRouter(Router *gin.RouterGroup) {
 		eduEnrollmentRouter.PUT("updateCourseId", eduEnrollmentApi.UpdateCourseId)      // 更新课程选择
 		eduEnrollmentRouter.POST("consumptionClass", eduEnrollmentApi.ConsumptionClass) // 消耗课时
 		eduEnrollmentRouter.POST("addSession", eduEnrollmentApi.AddSession)             // 增加课时
+		eduEnrollmentRouter.POST("refundTransfer", eduEnrollmentApi.RefundOrTransfer)   // 退费/转课
 	}
 }

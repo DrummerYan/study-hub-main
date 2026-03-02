@@ -4,4 +4,5 @@ type RouterGroup struct {
 	EduClassSessionRouter
 	EduEnrollmentRouter
 	EduPaymentRouter
+	EduRefundRouter
 }

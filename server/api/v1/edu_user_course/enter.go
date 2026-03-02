@@ -4,4 +4,5 @@ type ApiGroup struct {
 	EduClassSessionApi
 	EduEnrollmentApi
 	EduPaymentApi
+	EduRefundApi
 }

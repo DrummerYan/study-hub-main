@@ -127,3 +127,19 @@ export const addSession = (data) => {
     data
   })
 }
+
+// @Tags EduEnrollment
+// @Summary 退费/转课
+// @Security ApiKeyAuth
+// @accept application/json
+// @Produce application/json
+// @Param data body object true "退费/转课参数"
+// @Success 200 {string} string "{"success":true,"data":{},"msg":"操作成功"}"
+// @Router /eduEnrollment/refundTransfer [post]
+export const refundTransfer = (data) => {
+  return service({
+    url: '/eduEnrollment/refundTransfer',
+    method: 'post',
+    data
+  })
+}

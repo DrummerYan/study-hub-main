@@ -18,6 +18,10 @@ type EduEnrollment struct {
 	CourseId          *int                       `json:"courseId" form:"courseId" gorm:"column:course_id;comment:课程ID;size:10;"`
 	TotalSessions     *int                       `json:"totalSessions" form:"totalSessions" gorm:"column:total_sessions;comment:总课时数;size:10;"`
 	RemainingSessions *int                       `json:"remainingSessions" form:"remainingSessions" gorm:"column:remaining_sessions;comment:剩余课时数;size:10;"`
+	PaidSessions      *int                       `json:"paidSessions" form:"paidSessions" gorm:"column:paid_sessions;comment:付费课时数;size:10;"`
+	GiftSessions      *int                       `json:"giftSessions" form:"giftSessions" gorm:"column:gift_sessions;comment:赠送课时数;size:10;"`
+	RemainingPaid     *int                       `json:"remainingPaidSessions" form:"remainingPaidSessions" gorm:"column:remaining_paid_sessions;comment:剩余付费课时;size:10;"`
+	RemainingGift     *int                       `json:"remainingGiftSessions" form:"remainingGiftSessions" gorm:"column:remaining_gift_sessions;comment:剩余赠送课时;size:10;"`
 	PricePerSession   float64                    `json:"pricePerSession" form:"pricePerSession" gorm:"column:price_per_session;type:decimal(10,2);comment:课时单价;default:0;"`
 	DiscountAmount    float64                    `json:"discountAmount" form:"discountAmount" gorm:"column:discount_amount;type:decimal(10,2);comment:优惠金额;default:0;"`
 	TotalAmount       float64                    `json:"totalAmount" form:"totalAmount" gorm:"column:total_amount;type:decimal(10,2);comment:应收总额;default:0;"`

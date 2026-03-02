@@ -4,4 +4,5 @@ type ServiceGroup struct {
 	EduClassSessionService
 	EduEnrollmentService
 	EduPaymentService
+	EduRefundService
 }

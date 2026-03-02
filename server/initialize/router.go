@@ -61,6 +61,8 @@ func Routers() *gin.Engine {
 		edu_user_courseRouter := router.RouterGroupApp.Edu_user_course
 		edu_user_courseRouter.InitEduClassSessionRouter(PrivateGroup)
 		edu_user_courseRouter.InitEduEnrollmentRouter(PrivateGroup)
+		edu_user_courseRouter.InitEduPaymentRouter(PrivateGroup)
+		edu_user_courseRouter.InitEduRefundRouter(PrivateGroup)
 	}
 	{
 		edu_organizationRouter := router.RouterGroupApp.Edu_organization

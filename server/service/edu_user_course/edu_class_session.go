@@ -13,6 +13,7 @@ import (
 	"github.com/KeSilent/study-hub/server/model/edu_user_course"
 	edu_user_courseReq "github.com/KeSilent/study-hub/server/model/edu_user_course/request"
 	studentWithRemainingSessionsRes "github.com/KeSilent/study-hub/server/model/edu_user_course/response"
+	"gorm.io/gorm"
 )
 
 type EduClassSessionService struct {
@@ -96,8 +97,11 @@ func (eduClassSessionService *EduClassSessionService) GetEduClassSessionInfoList
 		return
 	}
 
-	// 按使用日期倒序排列，最新的在前面
-	err = db.Order("edu_class_session.use_date DESC, edu_class_session.created_at DESC").
+	// 按使用日期倒序排列，最新的在前面（预加载报名信息以展示总/剩余课时）
+	err = db.Preload("EduEnrollment", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id, total_sessions, remaining_sessions, paid_sessions, gift_sessions, remaining_paid_sessions, remaining_gift_sessions")
+	}).
+		Order("edu_class_session.use_date DESC, edu_class_session.created_at DESC").
 		Limit(limit).Offset(offset).Find(&eduClassSessions).Error
 	if err != nil {
 		return

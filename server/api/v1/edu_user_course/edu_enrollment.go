@@ -302,6 +302,38 @@ func (eduEnrollmentApi *EduEnrollmentApi) AddSession(c *gin.Context) {
 	}
 }
 
+// RefundOrTransfer 退费/转课
+// @Tags EduEnrollment
+// @Summary 退费/转课（仅超管）
+// @Security ApiKeyAuth
+// @accept application/json
+// @Produce application/json
+// @Param data body edu_user_courseReq.RefundTransferReq true "退费/转课参数"
+// @Success 200 {string} string "{"success":true,"data":{},"msg":"操作成功"}"
+// @Router /eduEnrollment/refundTransfer [post]
+func (eduEnrollmentApi *EduEnrollmentApi) RefundOrTransfer(c *gin.Context) {
+	if !utils.IsSuperAdmin(c) {
+		response.FailWithMessage("权限不足", c)
+		return
+	}
+	var req edu_user_courseReq.RefundTransferReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	if claims := utils.GetUserInfo(c); claims != nil {
+		req.OperatorId = int(claims.BaseClaims.ID)
+		req.OperatorName = claims.BaseClaims.NickName
+	}
+	result, err := eduEnrollmentService.RefundOrTransfer(req)
+	if err != nil {
+		global.GVA_LOG.Error("退费/转课失败!", zap.Error(err))
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+	response.OkWithDetailed(result, "操作成功", c)
+}
+
 func resolveChargeable(reason string, override *bool) bool {
 	if override != nil {
 		return *override

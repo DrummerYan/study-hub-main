@@ -15,6 +15,7 @@ import (
 	"github.com/KeSilent/study-hub/server/model/common/request"
 	"github.com/KeSilent/study-hub/server/model/edu_user_course"
 	edu_user_courseReq "github.com/KeSilent/study-hub/server/model/edu_user_course/request"
+	"gorm.io/gorm"
 )
 
 type EduEnrollmentService struct {
@@ -144,12 +145,24 @@ func (eduEnrollmentService *EduEnrollmentService) ConsumeSession(userID, courseI
 	}
 
 	// 检查剩余课时是否足够
-	if enrollment.RemainingSessions == nil || *enrollment.RemainingSessions < sessionsToConsume {
+	paidRemain := getIntValue(enrollment.RemainingPaid, enrollment.RemainingSessions)
+	giftRemain := getIntValue(enrollment.RemainingGift, nil)
+	if paidRemain+giftRemain < sessionsToConsume {
 		return errors.New("剩余课时不足")
 	}
 
-	// 扣除课时
-	*enrollment.RemainingSessions -= sessionsToConsume
+	paidConsume := sessionsToConsume
+	if paidConsume > paidRemain {
+		paidConsume = paidRemain
+	}
+	giftConsume := sessionsToConsume - paidConsume
+
+	paidRemain -= paidConsume
+	giftRemain -= giftConsume
+	enrollment.RemainingPaid = intPointerAllowZero(paidRemain)
+	enrollment.RemainingGift = intPointerAllowZero(giftRemain)
+	totalRemain := paidRemain + giftRemain
+	enrollment.RemainingSessions = intPointerAllowZero(totalRemain)
 
 	enenrollmentId := int(enrollment.ID)
 	t, err := parseUseDate(useData)
@@ -182,31 +195,53 @@ func (eduEnrollmentService *EduEnrollmentService) ConsumeSession(userID, courseI
 	if result.Error != nil {
 		return errors.New("更新报名信息失败")
 	}
-	// 记录课时操作
+	// 记录课时操作（付费优先，赠课在后）
 	unitPrice := enrollment.PricePerSession
-	amount := 0.0
-	if chargeable {
-		amount = float64(sessionsToConsume) * unitPrice
+	if paidConsume > 0 {
+		amount := 0.0
+		if chargeable {
+			amount = float64(paidConsume) * unitPrice
+		}
+		classSession := edu_user_course.EduClassSession{
+			EnrollmentId: &enenrollmentId,
+			Action:       "subtract",
+			Reason:       reason,
+			NumSessions:  intPointerAllowZero(paidConsume),
+			CourseName:   enrollment.EduCourse.CourseName,
+			UserName:     user.NickName,
+			TeacherId:    intPointer(teacherId),
+			TeacherName:  teacherName,
+			UnitPrice:    unitPrice,
+			Amount:       roundMoney(amount),
+			Chargeable:   chargeable,
+			UseDate:      t,
+		}
+		if err = eduClassSessionService.CreateEduClassSession(&classSession); err != nil {
+			return errors.New("创建课时操作记录失败")
+		}
 	}
-	classSession := edu_user_course.EduClassSession{
-		EnrollmentId: &enenrollmentId,
-		Action:       "subtract",
-		Reason:       reason,
-		NumSessions:  &sessionsToConsume,
-		CourseName:   enrollment.EduCourse.CourseName,
-		UserName:     user.NickName,
-		TeacherId:    intPointer(teacherId),
-		TeacherName:  teacherName,
-		UnitPrice:    unitPrice,
-		Amount:       roundMoney(amount),
-		Chargeable:   chargeable,
-		UseDate:      t,
-	}
-
-	err = eduClassSessionService.CreateEduClassSession(&classSession)
-
-	if err != nil {
-		return errors.New("创建课时操作记录失败")
+	if giftConsume > 0 {
+		reasonGift := reason
+		if !strings.Contains(reasonGift, "赠课") {
+			reasonGift = reasonGift + "（赠课）"
+		}
+		classSession := edu_user_course.EduClassSession{
+			EnrollmentId: &enenrollmentId,
+			Action:       "subtract",
+			Reason:       reasonGift,
+			NumSessions:  intPointerAllowZero(giftConsume),
+			CourseName:   enrollment.EduCourse.CourseName,
+			UserName:     user.NickName,
+			TeacherId:    intPointer(teacherId),
+			TeacherName:  teacherName,
+			UnitPrice:    unitPrice,
+			Amount:       0,
+			Chargeable:   false,
+			UseDate:      t,
+		}
+		if err = eduClassSessionService.CreateEduClassSession(&classSession); err != nil {
+			return errors.New("创建课时操作记录失败")
+		}
 	}
 
 	return nil
@@ -230,6 +265,25 @@ func (eduEnrollmentService *EduEnrollmentService) AddSession(userID, courseID, s
 		enrollment.TotalSessions = new(int)
 	}
 	*enrollment.TotalSessions += sessionsToAdd
+	if enrollment.PaidSessions == nil {
+		enrollment.PaidSessions = new(int)
+	}
+	if enrollment.GiftSessions == nil {
+		enrollment.GiftSessions = new(int)
+	}
+	if enrollment.RemainingPaid == nil {
+		enrollment.RemainingPaid = new(int)
+	}
+	if enrollment.RemainingGift == nil {
+		enrollment.RemainingGift = new(int)
+	}
+	if isGiftAddReason(reason) {
+		*enrollment.GiftSessions += sessionsToAdd
+		*enrollment.RemainingGift += sessionsToAdd
+	} else {
+		*enrollment.PaidSessions += sessionsToAdd
+		*enrollment.RemainingPaid += sessionsToAdd
+	}
 
 	// 增加剩余课时
 	if enrollment.RemainingSessions == nil {
@@ -320,23 +374,61 @@ func intPointer(val int) *int {
 	return &val
 }
 
+func intPointerAllowZero(val int) *int {
+	return &val
+}
+
+func getIntValue(val *int, fallback *int) int {
+	if val != nil {
+		return *val
+	}
+	if fallback != nil {
+		return *fallback
+	}
+	return 0
+}
+
 func applyEnrollmentDefaults(eduEnrollment *edu_user_course.EduEnrollment) {
-	if eduEnrollment.TotalSessions == nil {
+	if eduEnrollment.PaidSessions == nil {
 		zero := 0
-		eduEnrollment.TotalSessions = &zero
+		eduEnrollment.PaidSessions = intPointerAllowZero(zero)
 	}
-	if eduEnrollment.RemainingSessions == nil {
-		total := *eduEnrollment.TotalSessions
-		eduEnrollment.RemainingSessions = &total
+	if eduEnrollment.GiftSessions == nil {
+		zero := 0
+		eduEnrollment.GiftSessions = intPointerAllowZero(zero)
 	}
+	// 兼容旧数据：仅有总课时时默认全部为付费课时
+	if getIntValue(eduEnrollment.PaidSessions, nil) == 0 && getIntValue(eduEnrollment.GiftSessions, nil) == 0 {
+		if eduEnrollment.TotalSessions != nil && *eduEnrollment.TotalSessions > 0 {
+			eduEnrollment.PaidSessions = intPointerAllowZero(*eduEnrollment.TotalSessions)
+		}
+	}
+	total := getIntValue(eduEnrollment.PaidSessions, nil) + getIntValue(eduEnrollment.GiftSessions, nil)
+	eduEnrollment.TotalSessions = &total
+	if eduEnrollment.RemainingPaid == nil {
+		paid := getIntValue(eduEnrollment.PaidSessions, nil)
+		eduEnrollment.RemainingPaid = intPointerAllowZero(paid)
+	}
+	if eduEnrollment.RemainingGift == nil {
+		gift := getIntValue(eduEnrollment.GiftSessions, nil)
+		eduEnrollment.RemainingGift = intPointerAllowZero(gift)
+	}
+	// 兼容旧数据：仅有剩余总课时时默认全部为付费剩余
+	if getIntValue(eduEnrollment.RemainingPaid, nil) == 0 && getIntValue(eduEnrollment.RemainingGift, nil) == 0 {
+		if eduEnrollment.RemainingSessions != nil && *eduEnrollment.RemainingSessions > 0 {
+			eduEnrollment.RemainingPaid = intPointerAllowZero(*eduEnrollment.RemainingSessions)
+		}
+	}
+	remainingTotal := getIntValue(eduEnrollment.RemainingPaid, nil) + getIntValue(eduEnrollment.RemainingGift, nil)
+	eduEnrollment.RemainingSessions = intPointerAllowZero(remainingTotal)
 }
 
 func applyEnrollmentFinance(eduEnrollment *edu_user_course.EduEnrollment) {
-	totalSessions := 0
-	if eduEnrollment.TotalSessions != nil {
-		totalSessions = *eduEnrollment.TotalSessions
+	paidSessions := 0
+	if eduEnrollment.PaidSessions != nil {
+		paidSessions = *eduEnrollment.PaidSessions
 	}
-	totalAmount := float64(totalSessions)*eduEnrollment.PricePerSession - eduEnrollment.DiscountAmount
+	totalAmount := float64(paidSessions)*eduEnrollment.PricePerSession - eduEnrollment.DiscountAmount
 	if totalAmount < 0 {
 		totalAmount = 0
 	}
@@ -346,6 +438,247 @@ func applyEnrollmentFinance(eduEnrollment *edu_user_course.EduEnrollment) {
 
 func roundMoney(val float64) float64 {
 	return math.Round(val*100) / 100
+}
+
+func isGiftAddReason(reason string) bool {
+	return strings.Contains(reason, "赠")
+}
+
+// RefundOrTransfer 退费/转课（仅处理付费课时，赠课不计入可退范围）
+func (eduEnrollmentService *EduEnrollmentService) RefundOrTransfer(req edu_user_courseReq.RefundTransferReq) (edu_user_courseReq.RefundTransferResp, error) {
+	var resp edu_user_courseReq.RefundTransferResp
+	if req.EnrollmentId == 0 {
+		return resp, errors.New("报名信息不存在")
+	}
+	action := strings.ToLower(strings.TrimSpace(req.Action))
+	if action == "" {
+		action = "refund"
+	}
+	if action != "refund" && action != "transfer" {
+		return resp, errors.New("操作类型不合法")
+	}
+	if action == "transfer" && req.TargetCourseId == 0 {
+		return resp, errors.New("请选择转入课程")
+	}
+
+	tx := global.GVA_DB.Begin()
+	if tx.Error != nil {
+		return resp, tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	var enrollment edu_user_course.EduEnrollment
+	if err := tx.Preload("EduCourse").Where("id = ?", req.EnrollmentId).First(&enrollment).Error; err != nil {
+		tx.Rollback()
+		return resp, errors.New("报名信息未找到")
+	}
+	applyEnrollmentDefaults(&enrollment)
+
+	userName := ""
+	if enrollment.UserId != nil {
+		var user struct {
+			NickName string
+		}
+		if err := tx.Table("sys_users").Select("nick_name").Where("id = ?", *enrollment.UserId).First(&user).Error; err == nil {
+			userName = user.NickName
+		}
+	}
+
+	paidTotal := getIntValue(enrollment.PaidSessions, nil)
+	remainingPaid := getIntValue(enrollment.RemainingPaid, nil)
+	if paidTotal <= 0 {
+		tx.Rollback()
+		return resp, errors.New("没有付费课时")
+	}
+	if remainingPaid <= 0 {
+		tx.Rollback()
+		return resp, errors.New("剩余付费课时为0")
+	}
+	refundSessions := req.Sessions
+	if refundSessions <= 0 {
+		refundSessions = remainingPaid
+	}
+	if refundSessions > remainingPaid {
+		tx.Rollback()
+		return resp, errors.New("退费课时不能大于剩余付费课时")
+	}
+
+	paidUnitPrice := 0.0
+	if enrollment.TotalAmount > 0 && paidTotal > 0 {
+		paidUnitPrice = enrollment.TotalAmount / float64(paidTotal)
+	} else {
+		paidUnitPrice = enrollment.PricePerSession
+	}
+	refundAmount := roundMoney(float64(refundSessions) * paidUnitPrice)
+
+	// 更新报名信息（减少付费课时）
+	consumedPaid := paidTotal - remainingPaid
+	newPaidTotal := paidTotal - refundSessions
+	if newPaidTotal < consumedPaid {
+		tx.Rollback()
+		return resp, errors.New("可退付费课时不足")
+	}
+	newRemainingPaid := remainingPaid - refundSessions
+
+	enrollment.PaidSessions = intPointerAllowZero(newPaidTotal)
+	enrollment.RemainingPaid = intPointerAllowZero(newRemainingPaid)
+
+	// 退费/转课后，剩余赠课不再保留（已消耗赠课保留为历史）
+	giftTotal := getIntValue(enrollment.GiftSessions, nil)
+	giftRemain := getIntValue(enrollment.RemainingGift, nil)
+	giftConsumed := giftTotal - giftRemain
+	if giftRemain > 0 {
+		enrollment.GiftSessions = intPointerAllowZero(giftConsumed)
+		enrollment.RemainingGift = intPointerAllowZero(0)
+	}
+	remainingGift := getIntValue(enrollment.RemainingGift, nil)
+	enrollment.RemainingSessions = intPointerAllowZero(newRemainingPaid + remainingGift)
+
+	applyEnrollmentDefaults(&enrollment)
+	applyEnrollmentFinance(&enrollment)
+	if err := tx.Save(&enrollment).Error; err != nil {
+		tx.Rollback()
+		return resp, errors.New("更新报名信息失败")
+	}
+
+	// 记录退费/转课流水
+	refundRecord := edu_user_course.EduRefund{
+		EnrollmentId:   intPointerAllowZero(int(req.EnrollmentId)),
+		UserId:         enrollment.UserId,
+		CourseId:       enrollment.CourseId,
+		Action:         action,
+		RefundSessions: refundSessions,
+		RefundAmount:   refundAmount,
+		Reason:         strings.TrimSpace(req.Reason),
+		RefundTime:     time.Now(),
+	}
+	if req.OperatorId > 0 {
+		refundRecord.OperatorId = intPointerAllowZero(req.OperatorId)
+	}
+	if req.OperatorName != "" {
+		refundRecord.OperatorName = req.OperatorName
+	}
+	if err := tx.Create(&refundRecord).Error; err != nil {
+		tx.Rollback()
+		return resp, errors.New("记录退费失败")
+	}
+
+	// 转课：将剩余付费课时转入目标课程（按当前付费单价）
+	if action == "transfer" {
+		if enrollment.UserId == nil {
+			tx.Rollback()
+			return resp, errors.New("报名用户不存在")
+		}
+		var target edu_user_course.EduEnrollment
+		err := tx.Preload("EduCourse").Where("user_id = ? AND course_id = ?", *enrollment.UserId, req.TargetCourseId).First(&target).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			tx.Rollback()
+			return resp, errors.New("查询转入课程失败")
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			target = edu_user_course.EduEnrollment{
+				UserId:          enrollment.UserId,
+				CourseId:        &req.TargetCourseId,
+				PaidSessions:    intPointerAllowZero(refundSessions),
+				GiftSessions:    intPointerAllowZero(0),
+				RemainingPaid:   intPointerAllowZero(refundSessions),
+				RemainingGift:   intPointerAllowZero(0),
+				PricePerSession: paidUnitPrice,
+			}
+			applyEnrollmentDefaults(&target)
+			applyEnrollmentFinance(&target)
+			if err := tx.Create(&target).Error; err != nil {
+				tx.Rollback()
+				return resp, errors.New("创建转入报名失败")
+			}
+		} else {
+			applyEnrollmentDefaults(&target)
+			targetPaid := getIntValue(target.PaidSessions, nil) + refundSessions
+			targetRemain := getIntValue(target.RemainingPaid, nil) + refundSessions
+			target.PaidSessions = intPointerAllowZero(targetPaid)
+			target.RemainingPaid = intPointerAllowZero(targetRemain)
+			if target.PricePerSession <= 0 {
+				target.PricePerSession = paidUnitPrice
+			}
+			applyEnrollmentDefaults(&target)
+			applyEnrollmentFinance(&target)
+			if err := tx.Save(&target).Error; err != nil {
+				tx.Rollback()
+				return resp, errors.New("更新转入报名失败")
+			}
+		}
+
+		// 记录转课流水（不计费）
+		now := time.Now()
+		sourceEnrollmentId := int(enrollment.ID)
+		targetEnrollmentId := int(target.ID)
+		transferOut := edu_user_course.EduClassSession{
+			EnrollmentId: &sourceEnrollmentId,
+			Action:       "subtract",
+			Reason:       "转课转出",
+			NumSessions:  intPointerAllowZero(refundSessions),
+			CourseName:   enrollment.EduCourse.CourseName,
+			UserName:     userName,
+			UnitPrice:    paidUnitPrice,
+			Amount:       0,
+			Chargeable:   false,
+			UseDate:      now,
+		}
+		targetCourseName := target.EduCourse.CourseName
+		if targetCourseName == "" && req.TargetCourseId != 0 {
+			var course struct {
+				CourseName string `gorm:"column:course_name"`
+			}
+			if err := tx.Table("edu_course").Select("course_name").Where("id = ?", req.TargetCourseId).First(&course).Error; err == nil {
+				targetCourseName = course.CourseName
+			}
+		}
+		transferIn := edu_user_course.EduClassSession{
+			EnrollmentId: &targetEnrollmentId,
+			Action:       "add",
+			Reason:       "转课转入",
+			NumSessions:  intPointerAllowZero(refundSessions),
+			CourseName:   targetCourseName,
+			UserName:     userName,
+			UnitPrice:    target.PricePerSession,
+			Amount:       0,
+			Chargeable:   false,
+			UseDate:      now,
+		}
+		if err := tx.Create(&transferOut).Error; err != nil {
+			tx.Rollback()
+			return resp, errors.New("记录转出失败")
+		}
+		if err := tx.Create(&transferIn).Error; err != nil {
+			tx.Rollback()
+			return resp, errors.New("记录转入失败")
+		}
+	}
+
+	// 退费后若学员没有任何剩余课时，则自动停用（可在用户管理中恢复）
+	if action == "refund" && enrollment.UserId != nil {
+		var activeCount int64
+		if err := tx.Table("edu_enrollment").
+			Where("user_id = ?", *enrollment.UserId).
+			Where("(COALESCE(remaining_paid_sessions,0) + COALESCE(remaining_gift_sessions,0) > 0) OR COALESCE(remaining_sessions,0) > 0").
+			Count(&activeCount).Error; err == nil {
+			if activeCount == 0 {
+				_ = tx.Table("sys_users").Where("id = ?", *enrollment.UserId).Update("enable", 2).Error
+			}
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return resp, err
+	}
+	resp.RefundSessions = refundSessions
+	resp.PaidUnitPrice = roundMoney(paidUnitPrice)
+	resp.RefundAmount = refundAmount
+	return resp, nil
 }
 
 // GetEduEnrollmentByUser 根据用户ID和课程ID获取报名信息
